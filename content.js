@@ -1,5 +1,35 @@
 let video = document.querySelector("video");
 let isRemoteUpdate = false; // Flag to prevent infinite loops
+let syncInterval = null;
+
+const ALLOWED_OFFSET = 0.5; // NOTE: 0.5 seconds for RTT
+const SYNC_INTERVAL = 1000;
+
+function sendVideoState() {
+  if (!video || isRemoteUpdate) return;
+
+  chrome.runtime.sendMessage({
+    type: "VIDEO_EVENT",
+    data: {
+      action: "sync",
+      time: video.currentTime,
+      paused: video.paused,
+      timestamp: Date.now(),
+    },
+  });
+}
+
+function startSyncInterval() {
+  if (syncInterval) return;
+  syncInterval = setInterval(sendVideoState, SYNC_INTERVAL);
+}
+
+function stopSyncInterval() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+  }
+}
 
 function setupVideoListeners() {
   if (!video) return;
@@ -32,13 +62,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "APPLY_ACTION" && video) {
-    const { action, time } = msg.data;
+    const { action, time, paused } = msg.data;
 
     isRemoteUpdate = true; // Set flag so we don't send this back
 
-    if (action === "pause") video.pause();
-    if (action === "play") video.play();
-    if (Math.abs(video.currentTime - time) > 0.5) {
+    // Handle sync action
+    if (action === "sync") {
+      if (paused && !video.paused) video.pause();
+      if (!paused && video.paused) video.play();
+    } else {
+      if (action === "pause") video.pause();
+      if (action === "play") video.play();
+    }
+
+    if (Math.abs(video.currentTime - time) > ALLOWED_OFFSET) {
       video.currentTime = time;
     }
 
@@ -46,6 +83,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     setTimeout(() => {
       isRemoteUpdate = false;
     }, 500);
+  }
+
+  // Start/stop sync interval based on connection status
+  if (msg.type === "PEERS_CONNECTED") {
+    if (msg.connected && video) {
+      startSyncInterval();
+    } else {
+      stopSyncInterval();
+    }
   }
 });
 

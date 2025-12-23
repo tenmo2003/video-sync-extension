@@ -138,10 +138,19 @@ function connectToPeer(tabId, targetId) {
   });
 }
 
+function notifyPeersConnected(tabId, connected) {
+  chrome.runtime.sendMessage({
+    type: "NOTIFY_CONTENT_PEERS",
+    tabId,
+    connected,
+  });
+}
+
 function setupConnection(tabId, conn) {
   const tabData = tabPeers.get(tabId);
   if (!tabData) return;
 
+  const wasEmpty = tabData.connections.size === 0;
   tabData.connections.set(conn.peer, conn);
 
   // Notify about updated connected peers list
@@ -150,6 +159,11 @@ function setupConnection(tabId, conn) {
     tabId,
     connectedPeers: Array.from(tabData.connections.keys()),
   });
+
+  // Notify content script to start sync if this is the first connection
+  if (wasEmpty) {
+    notifyPeersConnected(tabId, true);
+  }
 
   conn.on("data", (data) => {
     chrome.runtime.sendMessage({ type: "INCOMING_ACTION", tabId, data });
@@ -162,6 +176,12 @@ function setupConnection(tabId, conn) {
       tabId,
       connectedPeers: Array.from(tabData.connections.keys()),
     });
+
+    // Notify content script to stop sync if no more connections
+    if (tabData.connections.size === 0) {
+      notifyPeersConnected(tabId, false);
+    }
+
     sendStatus(tabId, `${conn.peer} disconnected`, "warning");
   });
 }

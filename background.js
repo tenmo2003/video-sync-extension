@@ -36,6 +36,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     }
   }
+  // Notify content script about peer connection status
+  else if (msg.type === "NOTIFY_CONTENT_PEERS") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "PEERS_CONNECTED",
+        connected: msg.connected,
+      });
+    }
+  }
   // Route messages from Content Script -> Offscreen (add tabId)
   else if (msg.type === "VIDEO_EVENT") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
