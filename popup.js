@@ -33,19 +33,23 @@ function updatePeerList(peers) {
     requestHostBtn.style.display = "none";
     connectSection.classList.remove("hidden");
   } else {
-    el.innerHTML = peers.map(p => {
-      const isRequesting = hostRequests.includes(p);
-      const itemClass = isRequesting ? "peer-item requesting" : "peer-item";
-      const promoteBtn = isHost ? `<button class="promote-btn" data-peer-id="${p}">Promote</button>` : "";
-      const requestLabel = isRequesting ? " (requesting)" : "";
-      return `
+    el.innerHTML = peers
+      .map((p) => {
+        const isRequesting = hostRequests.includes(p);
+        const itemClass = isRequesting ? "peer-item requesting" : "peer-item";
+        const promoteBtn = isHost
+          ? `<button class="promote-btn" data-peer-id="${p}">Promote</button>`
+          : "";
+        const requestLabel = isRequesting ? " (requesting)" : "";
+        return `
         <div class="${itemClass}">
           <span class="peer-id">${p}${requestLabel}</span>
           ${promoteBtn}
           <button class="disconnect-btn" data-peer-id="${p}">X</button>
         </div>
       `;
-    }).join("");
+      })
+      .join("");
     disconnectAllBtn.style.display = "block";
 
     // Update button text, style, and heading based on role
@@ -66,7 +70,7 @@ function updatePeerList(peers) {
     requestHostBtn.style.display = isHost ? "none" : "block";
 
     // Add click handlers for disconnect buttons
-    el.querySelectorAll(".disconnect-btn").forEach(btn => {
+    el.querySelectorAll(".disconnect-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const peerId = btn.getAttribute("data-peer-id");
         chrome.runtime.sendMessage({ type: "DISCONNECT_PEER", peerId });
@@ -74,7 +78,7 @@ function updatePeerList(peers) {
     });
 
     // Add click handlers for promote buttons (host only)
-    el.querySelectorAll(".promote-btn").forEach(btn => {
+    el.querySelectorAll(".promote-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const peerId = btn.getAttribute("data-peer-id");
         chrome.runtime.sendMessage({ type: "PROMOTE_PEER", peerId });
@@ -125,7 +129,7 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         } else {
           setVideoStatus(response?.hasVideo || false);
         }
-      }
+      },
     );
 
     // Initialize or get existing peer for this tab
@@ -159,7 +163,9 @@ chrome.runtime.onMessage.addListener((msg) => {
     hostRequests = msg.hostRequests || [];
     // Re-render peer list with updated role info
     const peerListEl = document.getElementById("peer-list");
-    const currentPeers = Array.from(peerListEl.querySelectorAll(".peer-id")).map(el => el.textContent.replace(" (requesting)", ""));
+    const currentPeers = Array.from(
+      peerListEl.querySelectorAll(".peer-id"),
+    ).map((el) => el.textContent.replace(" (requesting)", ""));
     updatePeerList(currentPeers);
     updateRoleIndicator(currentPeers.length > 0);
   }
@@ -182,13 +188,13 @@ document.getElementById("copy-btn").addEventListener("click", () => {
 
 // Connect button
 document.getElementById("connect-btn").addEventListener("click", () => {
-  const friendId = document.getElementById("friend-id").value.trim();
-  if (!friendId) {
-    setConnectionStatus("Please enter a friend's ID", "warning");
+  const hostId = document.getElementById("host-id").value.trim();
+  if (!hostId) {
+    setConnectionStatus("Please enter a host's ID", "warning");
     return;
   }
   setConnectionStatus("Connecting...", "info");
-  chrome.runtime.sendMessage({ type: "CONNECT_TO", targetId: friendId });
+  chrome.runtime.sendMessage({ type: "CONNECT_TO", targetId: hostId });
 });
 
 // Settings link

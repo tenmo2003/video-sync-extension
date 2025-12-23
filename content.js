@@ -134,7 +134,7 @@ function setupVideoListeners() {
   });
 }
 
-// 2. APPLY: Receive actions from friend & respond to status checks
+// 2. APPLY: Receive actions from host & respond to status checks
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "CHECK_VIDEO_STATUS") {
     // Re-check for video element (it might have loaded dynamically)
