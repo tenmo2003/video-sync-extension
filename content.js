@@ -1,15 +1,51 @@
 let video = document.querySelector("video");
 let isRemoteUpdate = false; // Flag to prevent infinite loops
-let syncInterval = null;
+let syncIntervalId = null;
 let toastElement = null;
 let toastTimeout = null;
 
-const ALLOWED_OFFSET = 0.5; // NOTE: 0.5 seconds for RTT
-const SYNC_INTERVAL = 1000;
+// Default settings (will be overwritten by stored settings)
+let settings = {
+  syncInterval: 1000,
+  allowedOffset: 0.5,
+  toastEnabled: true,
+  toastDuration: 1500,
+};
+
+// Load settings from storage
+function loadSettings() {
+  chrome.storage.sync.get(settings, (stored) => {
+    settings = { ...settings, ...stored };
+    // Restart sync interval if running with new interval
+    if (syncIntervalId) {
+      stopSyncInterval();
+      startSyncInterval();
+    }
+  });
+}
+
+// Listen for settings changes
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync") {
+    for (const key in changes) {
+      if (key in settings) {
+        settings[key] = changes[key].newValue;
+      }
+    }
+    // Restart sync interval if running with new interval
+    if (syncIntervalId && changes.syncInterval) {
+      stopSyncInterval();
+      startSyncInterval();
+    }
+  }
+});
+
+// Load settings on startup
+loadSettings();
 
 // Create and show a toast notification anchored to the video
 function showSyncToast(message) {
-  if (!video) return;
+  if (!video || !settings.toastEnabled) return;
 
   // Create toast if it doesn't exist
   if (!toastElement) {
@@ -45,10 +81,10 @@ function showSyncToast(message) {
   // Clear previous timeout
   if (toastTimeout) clearTimeout(toastTimeout);
 
-  // Fade out after delay
+  // Fade out after delay (use setting)
   toastTimeout = setTimeout(() => {
     if (toastElement) toastElement.style.opacity = "0";
-  }, 1500);
+  }, settings.toastDuration);
 }
 
 function sendVideoState() {
@@ -66,14 +102,14 @@ function sendVideoState() {
 }
 
 function startSyncInterval() {
-  if (syncInterval) return;
-  syncInterval = setInterval(sendVideoState, SYNC_INTERVAL);
+  if (syncIntervalId) return;
+  syncIntervalId = setInterval(sendVideoState, settings.syncInterval);
 }
 
 function stopSyncInterval() {
-  if (syncInterval) {
-    clearInterval(syncInterval);
-    syncInterval = null;
+  if (syncIntervalId) {
+    clearInterval(syncIntervalId);
+    syncIntervalId = null;
   }
 }
 
@@ -138,7 +174,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     }
 
-    if (Math.abs(video.currentTime - time) > ALLOWED_OFFSET) {
+    if (Math.abs(video.currentTime - time) > settings.allowedOffset) {
       video.currentTime = time;
       didSync = true;
     }

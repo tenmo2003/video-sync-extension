@@ -94,3 +94,9 @@ document.getElementById("connect-btn").addEventListener("click", () => {
   setConnectionStatus("Connecting...", "info");
   chrome.runtime.sendMessage({ type: "CONNECT_TO", targetId: friendId });
 });
+
+// Settings link
+document.getElementById("settings-link").addEventListener("click", (e) => {
+  e.preventDefault();
+  chrome.runtime.openOptionsPage();
+});
