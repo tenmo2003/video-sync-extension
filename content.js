@@ -1,9 +1,55 @@
 let video = document.querySelector("video");
 let isRemoteUpdate = false; // Flag to prevent infinite loops
 let syncInterval = null;
+let toastElement = null;
+let toastTimeout = null;
 
 const ALLOWED_OFFSET = 0.5; // NOTE: 0.5 seconds for RTT
 const SYNC_INTERVAL = 1000;
+
+// Create and show a toast notification anchored to the video
+function showSyncToast(message) {
+  if (!video) return;
+
+  // Create toast if it doesn't exist
+  if (!toastElement) {
+    toastElement = document.createElement("div");
+    toastElement.style.cssText = `
+      position: fixed;
+      background: rgba(255, 255, 255, 1);
+      color: black;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-family: sans-serif;
+      font-size: 13px;
+      z-index: 999999;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      opacity: 0;
+    `;
+    document.body.appendChild(toastElement);
+  }
+
+  // Position toast near the video (bottom-right corner)
+  const rect = video.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+
+  toastElement.style.bottom = `${viewportHeight - rect.bottom + 20}px`;
+  toastElement.style.right = `${viewportWidth - rect.right + 10}px`;
+
+  // Update message and show
+  toastElement.textContent = message;
+  toastElement.style.opacity = "0.8";
+
+  // Clear previous timeout
+  if (toastTimeout) clearTimeout(toastTimeout);
+
+  // Fade out after delay
+  toastTimeout = setTimeout(() => {
+    if (toastElement) toastElement.style.opacity = "0";
+  }, 1500);
+}
 
 function sendVideoState() {
   if (!video || isRemoteUpdate) return;
@@ -66,17 +112,39 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     isRemoteUpdate = true; // Set flag so we don't send this back
 
+    let didSync = false;
+
     // Handle sync action
     if (action === "sync") {
-      if (paused && !video.paused) video.pause();
-      if (!paused && video.paused) video.play();
+      if (paused && !video.paused) {
+        video.pause();
+        didSync = true;
+      }
+      if (!paused && video.paused) {
+        video.play();
+        didSync = true;
+      }
     } else {
-      if (action === "pause") video.pause();
-      if (action === "play") video.play();
+      if (action === "pause") {
+        video.pause();
+        showSyncToast("Paused by peer");
+      }
+      if (action === "play") {
+        video.play();
+        showSyncToast("Played by peer");
+      }
+      if (action === "seeked") {
+        showSyncToast("Seeked by peer");
+      }
     }
 
     if (Math.abs(video.currentTime - time) > ALLOWED_OFFSET) {
       video.currentTime = time;
+      didSync = true;
+    }
+
+    if (didSync) {
+      showSyncToast("Synced");
     }
 
     // Reset flag after a short delay
