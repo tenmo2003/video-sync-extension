@@ -48,15 +48,18 @@ function updatePeerList(peers) {
     }).join("");
     disconnectAllBtn.style.display = "block";
 
-    // Update button text and style based on role
+    // Update button text, style, and heading based on role
+    const peersHeading = document.getElementById("peers-heading");
     if (isHost) {
       disconnectAllBtn.innerText = "End Party";
       disconnectAllBtn.classList.add("end-party");
       connectSection.classList.add("hidden"); // Hide connect section for host
+      peersHeading.innerText = "Connected Peers:";
     } else {
-      disconnectAllBtn.innerText = "Disconnect All";
+      disconnectAllBtn.innerText = "Leave Room";
       disconnectAllBtn.classList.remove("end-party");
       connectSection.classList.remove("hidden"); // Show connect section for guests
+      peersHeading.innerText = "Connected Room:";
     }
 
     // Show request host button only for guests
