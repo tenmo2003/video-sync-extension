@@ -144,11 +144,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "APPLY_ACTION" && video) {
-    const { action, time, paused } = msg.data;
+    const { action, time, paused, timestamp } = msg.data;
 
     isRemoteUpdate = true; // Set flag so we don't send this back
 
     let didSync = false;
+
+    // Calculate adjusted time based on network latency
+    // If video is playing, add elapsed time since message was sent
+    let adjustedTime = time;
+    if (timestamp && !paused) {
+      const elapsed = (Date.now() - timestamp) / 1000; // Convert to seconds
+      adjustedTime = time + elapsed;
+    }
 
     // Handle sync action
     if (action === "sync") {
@@ -174,8 +182,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     }
 
-    if (Math.abs(video.currentTime - time) > settings.allowedOffset) {
-      video.currentTime = time;
+    if (Math.abs(video.currentTime - adjustedTime) > settings.allowedOffset) {
+      video.currentTime = adjustedTime;
       didSync = true;
     }
 
