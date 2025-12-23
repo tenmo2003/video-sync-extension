@@ -24,6 +24,19 @@ chrome.runtime.onMessage.addListener((msg) => {
         if (conn.open) conn.send(msg.data);
       });
     }
+  } else if (msg.type === "VIDEO_CHANGED") {
+    if (!msg.tabId) return;
+    // Host changed video - notify all peers to navigate
+    const tabData = tabPeers.get(msg.tabId);
+    if (tabData && tabData.isHost && tabData.connections.size > 0) {
+      const newUrl = msg.data.newUrl;
+      tabData.connections.forEach((conn) => {
+        if (conn.open) {
+          conn.send({ type: "VIDEO_NAVIGATE", url: newUrl });
+        }
+      });
+      sendStatus(msg.tabId, "Video changed - guests are following", "info");
+    }
   } else if (msg.type === "TAB_CLOSED") {
     cleanupTab(msg.tabId);
   } else if (msg.type === "DISCONNECT_PEER") {
@@ -38,6 +51,18 @@ chrome.runtime.onMessage.addListener((msg) => {
   } else if (msg.type === "PROMOTE_PEER") {
     if (!msg.tabId) return;
     promotePeer(msg.tabId, msg.peerId);
+  } else if (msg.type === "NO_VIDEO_DISCONNECT") {
+    if (!msg.tabId) return;
+    noVideoDisconnect(msg.tabId);
+  } else if (msg.type === "GET_CONNECTION_STATE") {
+    if (!msg.tabId) return;
+    const tabData = tabPeers.get(msg.tabId);
+    chrome.runtime.sendMessage({
+      type: "CONNECTION_STATE_RESPONSE",
+      tabId: msg.tabId,
+      connected: tabData ? tabData.connections.size > 0 : false,
+      isHost: tabData ? tabData.isHost : false,
+    });
   }
 });
 
@@ -86,13 +111,10 @@ function sendRoleUpdate(tabId) {
 function initOrGetPeer(tabId, tabUrl) {
   const existing = tabPeers.get(tabId);
 
-  // If peer exists for this tab with same URL, reuse it
-  if (
-    existing &&
-    existing.url === tabUrl &&
-    existing.peer &&
-    !existing.peer.destroyed
-  ) {
+  // If peer exists for this tab, reuse it (even if URL changed)
+  if (existing && existing.peer && !existing.peer.destroyed) {
+    // Update the URL but keep the peer and connections
+    existing.url = tabUrl;
     // Just send back the existing peer info
     sendPeerInfo(tabId);
     sendStatus(
@@ -103,7 +125,7 @@ function initOrGetPeer(tabId, tabUrl) {
     return;
   }
 
-  // URL changed or no peer exists, create new one
+  // No peer exists, create new one
   if (existing) {
     cleanupTab(tabId);
   }
@@ -342,6 +364,24 @@ function setupConnection(tabId, conn, becomeHost = false) {
       // The host has changed to a different peer (info update only)
       tabData.hostPeerId = data.newHostPeerId;
       sendStatus(tabId, `Host changed to ${data.newHostPeerId}`, "info");
+    } else if (data.type === "VIDEO_NAVIGATE") {
+      // Host changed video - notify content script to navigate
+      chrome.runtime.sendMessage({
+        type: "NOTIFY_VIDEO_NAVIGATE",
+        tabId,
+        url: data.url,
+      });
+    } else if (data.type === "NO_VIDEO_LEFT") {
+      // Host left video page - notify and disconnect
+      chrome.runtime.sendMessage({
+        type: "NOTIFY_NO_VIDEO_LEFT",
+        tabId,
+        reason: data.reason,
+      });
+      // Disconnect after a short delay to allow toast to show
+      setTimeout(() => {
+        disconnectAll(tabId);
+      }, 100);
     } else {
       // Regular video sync data
       chrome.runtime.sendMessage({ type: "INCOMING_ACTION", tabId, data });
@@ -422,6 +462,23 @@ function disconnectAll(tabId) {
   tabData.hostRequests.clear();
   sendRoleUpdate(tabId);
   sendStatus(tabId, "Disconnected from all peers", "info");
+}
+
+function noVideoDisconnect(tabId) {
+  const tabData = tabPeers.get(tabId);
+  if (!tabData || tabData.connections.size === 0) return;
+
+  // Notify all peers that we're disconnecting due to no video
+  tabData.connections.forEach((conn) => {
+    if (conn.open) {
+      conn.send({ type: "NO_VIDEO_LEFT", reason: "Host navigated to a page without video" });
+    }
+  });
+
+  // Small delay to ensure message is sent before closing
+  setTimeout(() => {
+    disconnectAll(tabId);
+  }, 200);
 }
 
 function requestHost(tabId) {

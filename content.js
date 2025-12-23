@@ -4,6 +4,8 @@ let syncIntervalId = null;
 let toastElement = null;
 let toastTimeout = null;
 let isHost = false; // Only host can send video events
+let lastVideoUrl = null; // Track video URL changes
+let peersConnected = false; // Track if we have peers
 
 // Default settings (will be overwritten by stored settings)
 let settings = {
@@ -114,8 +116,31 @@ function stopSyncInterval() {
   }
 }
 
+function getPageUrl() {
+  return window.location.href;
+}
+
+function checkVideoChange() {
+  if (!isHost || !peersConnected) return;
+
+  const currentUrl = getPageUrl();
+  if (lastVideoUrl && lastVideoUrl !== currentUrl) {
+    // Video/page changed, notify peers
+    chrome.runtime.sendMessage({
+      type: "VIDEO_CHANGED",
+      data: {
+        newUrl: currentUrl,
+      },
+    });
+  }
+  lastVideoUrl = currentUrl;
+}
+
 function setupVideoListeners() {
   if (!video) return;
+
+  // Track initial URL
+  lastVideoUrl = getPageUrl();
 
   // 1. LISTEN: Capture local user actions (only send if host)
   ["play", "pause", "seeked"].forEach((event) => {
@@ -131,6 +156,13 @@ function setupVideoListeners() {
         },
       });
     });
+  });
+
+  // Listen for video source changes (for sites that change video without page reload)
+  video.addEventListener("loadeddata", () => {
+    if (isHost && peersConnected) {
+      checkVideoChange();
+    }
   });
 }
 
@@ -200,11 +232,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Start/stop sync interval based on connection status
   if (msg.type === "PEERS_CONNECTED") {
+    peersConnected = msg.connected;
     if (msg.connected && video) {
       startSyncInterval();
+      lastVideoUrl = getPageUrl(); // Track current URL when connected
     } else {
       stopSyncInterval();
       isHost = false; // Reset host status when disconnected
+      peersConnected = false;
     }
   }
 
@@ -213,8 +248,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     isHost = msg.isHost || false;
     if (isHost) {
       showSyncToast("You are now the host");
+      lastVideoUrl = getPageUrl(); // Start tracking URL as host
     } else {
       showSyncToast("You are now a guest");
+    }
+  }
+
+  // Host changed video - navigate to new URL
+  if (msg.type === "VIDEO_NAVIGATE") {
+    const newUrl = msg.url;
+    if (newUrl && newUrl !== getPageUrl()) {
+      showSyncToast("Host changed video, following...");
+      setTimeout(() => {
+        window.location.href = newUrl;
+      }, 1000);
     }
   }
 
@@ -228,9 +275,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "PEER_REQUESTING_HOST") {
     showSyncToast(`${msg.peerId} is requesting control`);
   }
+
+  // Host left video page
+  if (msg.type === "NO_VIDEO_LEFT") {
+    showSyncToast("Host left the video page - disconnected");
+    peersConnected = false;
+    isHost = false;
+  }
+
+  // Connection state response from offscreen
+  if (msg.type === "CONNECTION_STATE") {
+    handleConnectionState(msg.connected, msg.isHost);
+  }
 });
 
 // Initial setup if video already exists
 if (video) {
   setupVideoListeners();
+}
+
+// Query connection state from offscreen on page load
+function queryConnectionState() {
+  chrome.runtime.sendMessage({ type: "GET_CONNECTION_STATE" });
+}
+
+// Handle connection state response
+function handleConnectionState(connected, hostStatus) {
+  peersConnected = connected;
+  isHost = hostStatus;
+  lastVideoUrl = getPageUrl();
+
+  // Now check if we should disconnect (no video but was connected)
+  video = document.querySelector("video");
+  if (!video && peersConnected) {
+    chrome.runtime.sendMessage({
+      type: "NO_VIDEO_DISCONNECT",
+    });
+  }
+}
+
+// Run state query after page is fully loaded
+if (document.readyState === "complete") {
+  queryConnectionState();
+} else {
+  window.addEventListener("load", queryConnectionState);
 }

@@ -47,12 +47,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
   // Route messages from Content Script -> Offscreen (add tabId)
-  else if (msg.type === "VIDEO_EVENT") {
+  else if (msg.type === "VIDEO_EVENT" || msg.type === "VIDEO_CHANGED" || msg.type === "NO_VIDEO_DISCONNECT") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
         sendToOffscreen({ ...msg, tabId: tabs[0].id });
       }
     });
+  }
+  // Query connection state for content script (needs async response)
+  else if (msg.type === "GET_CONNECTION_STATE") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        sendToOffscreen({ type: "GET_CONNECTION_STATE", tabId: tabs[0].id });
+      }
+    });
+    // Response will be sent via CONNECTION_STATE_RESPONSE message
   }
   // Messages from popup that need tab info added
   else if (
@@ -92,6 +101,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.tabs.sendMessage(tabId, {
         type: eventType,
         peerId: msg.peerId,
+      });
+    }
+  }
+  // Route video navigation to content script
+  else if (msg.type === "NOTIFY_VIDEO_NAVIGATE") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "VIDEO_NAVIGATE",
+        url: msg.url,
+      });
+    }
+  }
+  // Route no video left notification to content script
+  else if (msg.type === "NOTIFY_NO_VIDEO_LEFT") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "NO_VIDEO_LEFT",
+        reason: msg.reason,
+      });
+    }
+  }
+  // Route connection state response to content script
+  else if (msg.type === "CONNECTION_STATE_RESPONSE") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "CONNECTION_STATE",
+        connected: msg.connected,
+        isHost: msg.isHost,
       });
     }
   }
