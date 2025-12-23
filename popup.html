@@ -26,6 +26,10 @@
     .peer-item .promote-btn:hover { background: #b1dfbb; }
     .peer-item.requesting { background: #fff3cd; border-radius: 3px; padding: 4px; margin: 2px 0; }
     #disconnect-all { margin-top: 8px; font-size: 12px; padding: 4px 8px; cursor: pointer; display: none; }
+    #disconnect-all.end-party { background: #dc3545; border: 1px solid #c82333; color: white; }
+    #disconnect-all.end-party:hover { background: #c82333; }
+    #connect-section { margin-top: 8px; }
+    #connect-section.hidden { display: none; }
     #role-indicator { padding: 6px 10px; border-radius: 4px; margin: 8px 0; font-size: 13px; font-weight: bold; display: none; }
     #role-indicator.host { background: #d4edda; color: #155724; }
     #role-indicator.guest { background: #e2e3e5; color: #383d41; }
@@ -47,11 +51,12 @@
     <h4>Connected Peers:</h4>
     <div id="peer-list" class="peer-list"></div>
     <button id="request-host-btn">Request Host Control</button>
-    <button id="disconnect-all">Disconnect All</button>
   </div>
-  <hr>
-  <input type="text" id="friend-id" placeholder="Friend's ID">
-  <button id="connect-btn">Connect</button>
+  <div id="connect-section">
+    <hr>
+    <input type="text" id="friend-id" placeholder="Friend's ID">
+    <button id="connect-btn">Connect</button>
+  </div>
   <hr>
   <a href="#" id="settings-link" style="font-size: 12px; color: #666;">Settings</a>
   <script src="popup.js"></script>

@@ -25,11 +25,13 @@ function updatePeerList(peers) {
   const el = document.getElementById("peer-list");
   const disconnectAllBtn = document.getElementById("disconnect-all");
   const requestHostBtn = document.getElementById("request-host-btn");
+  const connectSection = document.getElementById("connect-section");
 
   if (peers.length === 0) {
     el.innerHTML = "";
     disconnectAllBtn.style.display = "none";
     requestHostBtn.style.display = "none";
+    connectSection.classList.remove("hidden");
   } else {
     el.innerHTML = peers.map(p => {
       const isRequesting = hostRequests.includes(p);
@@ -45,6 +47,17 @@ function updatePeerList(peers) {
       `;
     }).join("");
     disconnectAllBtn.style.display = "block";
+
+    // Update button text and style based on role
+    if (isHost) {
+      disconnectAllBtn.innerText = "End Party";
+      disconnectAllBtn.classList.add("end-party");
+      connectSection.classList.add("hidden"); // Hide connect section for host
+    } else {
+      disconnectAllBtn.innerText = "Disconnect All";
+      disconnectAllBtn.classList.remove("end-party");
+      connectSection.classList.remove("hidden"); // Show connect section for guests
+    }
 
     // Show request host button only for guests
     requestHostBtn.style.display = isHost ? "none" : "block";
