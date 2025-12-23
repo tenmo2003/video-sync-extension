@@ -1,8 +1,22 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <style>
+    body { width: 250px; padding: 10px; font-family: sans-serif; }
+    .status { padding: 6px 10px; border-radius: 4px; margin: 8px 0; font-size: 13px; }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .status.info { background: #cce5ff; color: #004085; }
+    .status.warning { background: #fff3cd; color: #856404; }
+    #connect-btn { margin-top: 8px; }
+    #friend-id { width: 100%; box-sizing: border-box; padding: 6px; }
+  </style>
+</head>
 <body>
   <h3>PeerSync</h3>
+  <div id="video-status" class="status info">Checking for video...</div>
   <div>My ID: <span id="my-id">Generating...</span></div>
+  <div id="connection-status" class="status info">Not connected</div>
   <hr>
   <input type="text" id="friend-id" placeholder="Friend's ID">
   <button id="connect-btn">Connect</button>

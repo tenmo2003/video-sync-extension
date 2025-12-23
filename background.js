@@ -29,6 +29,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   else if (msg.type === "VIDEO_EVENT") {
     chrome.runtime.sendMessage(msg).catch(() => {}); // Catch error if offscreen isn't ready
   }
+  // Forward connection status from offscreen to popup
+  else if (msg.type === "CONNECTION_STATUS") {
+    // This message will be received by popup via chrome.runtime.onMessage
+    // No additional routing needed as popup also listens to runtime messages
+  }
 });
 
 // Initialize offscreen when extension icon is clicked

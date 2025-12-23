@@ -13,6 +13,10 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
+function sendConnectionStatus(status, statusType = "info") {
+  chrome.runtime.sendMessage({ type: "CONNECTION_STATUS", status, statusType });
+}
+
 function setupPeer() {
   peer = new Peer(); // Auto-generates an ID from PeerJS cloud server
 
@@ -23,13 +27,26 @@ function setupPeer() {
 
   peer.on("connection", (c) => {
     conn = c;
+    sendConnectionStatus("Friend connected!", "success");
     setupConnection();
+  });
+
+  peer.on("error", (err) => {
+    sendConnectionStatus(`Error: ${err.type}`, "error");
   });
 }
 
 function connectToPeer(id) {
   conn = peer.connect(id);
-  conn.on("open", setupConnection);
+
+  conn.on("open", () => {
+    sendConnectionStatus("Connected!", "success");
+    setupConnection();
+  });
+
+  conn.on("error", (err) => {
+    sendConnectionStatus(`Connection error: ${err}`, "error");
+  });
 }
 
 function setupConnection() {
@@ -37,5 +54,9 @@ function setupConnection() {
   conn.on("data", (data) => {
     // Send it to the Background script to be forwarded to the video
     chrome.runtime.sendMessage({ type: "INCOMING_ACTION", data: data });
+  });
+
+  conn.on("close", () => {
+    sendConnectionStatus("Disconnected", "warning");
   });
 }
