@@ -6,12 +6,15 @@ let hostRequests = [];
 // Status display helpers
 function setVideoStatus(hasVideo) {
   const el = document.getElementById("video-status");
+  const mainContent = document.getElementById("main-content");
   if (hasVideo) {
-    el.className = "status success";
-    el.innerText = "Video detected";
+    el.style.display = "none";
+    mainContent.style.display = "block";
   } else {
+    el.style.display = "block";
     el.className = "status error";
     el.innerText = "No video found on this page";
+    mainContent.style.display = "none";
   }
 }
 
