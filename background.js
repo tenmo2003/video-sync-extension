@@ -1,8 +1,13 @@
 let offscreenCreating = false;
+let offscreenReady = false;
 
 // Ensure the offscreen document exists
 async function setupOffscreen() {
-  if (await chrome.offscreen.hasDocument()) return;
+  if (offscreenReady) return;
+  if (await chrome.offscreen.hasDocument()) {
+    offscreenReady = true;
+    return;
+  }
   if (offscreenCreating) return;
   offscreenCreating = true;
   await chrome.offscreen.createDocument({
@@ -11,31 +16,54 @@ async function setupOffscreen() {
     justification: "P2P Video Sync",
   });
   offscreenCreating = false;
+  offscreenReady = true;
+}
+
+// Helper to send message to offscreen after ensuring it exists
+async function sendToOffscreen(msg) {
+  await setupOffscreen();
+  chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  // Route messages from Offscreen -> Content Script
+  // Route messages from Offscreen -> Content Script (with tabId)
   if (msg.type === "INCOMING_ACTION") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "APPLY_ACTION",
+        data: msg.data,
+      });
+    }
+  }
+  // Route messages from Content Script -> Offscreen (add tabId)
+  else if (msg.type === "VIDEO_EVENT") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: "APPLY_ACTION",
-          data: msg.data,
+        sendToOffscreen({ ...msg, tabId: tabs[0].id });
+      }
+    });
+  }
+  // Messages from popup that need tab info added
+  else if (msg.type === "INIT_PEER" || msg.type === "GET_PEER_INFO" || msg.type === "CONNECT_TO") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        sendToOffscreen({
+          ...msg,
+          tabId: tabs[0].id,
+          tabUrl: tabs[0].url
         });
       }
     });
   }
-  // Route messages from Content Script -> Offscreen
-  else if (msg.type === "VIDEO_EVENT") {
-    chrome.runtime.sendMessage(msg).catch(() => {}); // Catch error if offscreen isn't ready
-  }
-  // Forward connection status from offscreen to popup
-  else if (msg.type === "CONNECTION_STATUS") {
-    // This message will be received by popup via chrome.runtime.onMessage
-    // No additional routing needed as popup also listens to runtime messages
-  }
+  // Forward these messages directly (popup listens to runtime messages)
+  // PEER_INFO, CONNECTION_STATUS, CONNECTED_PEERS_UPDATE are handled by popup
 });
 
-// Initialize offscreen when extension icon is clicked
-chrome.action.onClicked.addListener(setupOffscreen);
+// Clean up peers when tabs are closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  sendToOffscreen({ type: "TAB_CLOSED", tabId });
+});
+
+// Initialize offscreen at startup
 setupOffscreen();
