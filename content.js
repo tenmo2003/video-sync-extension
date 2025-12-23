@@ -217,6 +217,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       showSyncToast("You are now a guest");
     }
   }
+
+  // Peer events
+  if (msg.type === "PEER_JOINED") {
+    showSyncToast(`${msg.peerId} joined`);
+  }
+  if (msg.type === "PEER_DISCONNECTED") {
+    showSyncToast(`${msg.peerId} disconnected`);
+  }
+  if (msg.type === "PEER_REQUESTING_HOST") {
+    showSyncToast(`${msg.peerId} is requesting control`);
+  }
 });
 
 // Initial setup if video already exists

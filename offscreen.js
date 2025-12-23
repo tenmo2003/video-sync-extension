@@ -276,6 +276,13 @@ function setupConnection(tabId, conn, becomeHost = false) {
     notifyPeersConnected(tabId, true);
   }
 
+  // Notify content script about peer join
+  chrome.runtime.sendMessage({
+    type: "NOTIFY_PEER_JOINED",
+    tabId,
+    peerId: conn.peer,
+  });
+
   conn.on("data", (data) => {
     // Handle role-related messages
     if (data.type === "HOST_REQUEST") {
@@ -283,6 +290,12 @@ function setupConnection(tabId, conn, becomeHost = false) {
       tabData.hostRequests.add(conn.peer);
       sendRoleUpdate(tabId);
       sendStatus(tabId, `${conn.peer} is requesting host control`, "warning");
+      // Notify content script
+      chrome.runtime.sendMessage({
+        type: "NOTIFY_PEER_REQUESTING_HOST",
+        tabId,
+        peerId: conn.peer,
+      });
     } else if (data.type === "HOST_GRANTED") {
       // We have been promoted to host
       tabData.isHost = true;
@@ -336,13 +349,21 @@ function setupConnection(tabId, conn, becomeHost = false) {
   });
 
   conn.on("close", () => {
-    tabData.connections.delete(conn.peer);
-    tabData.hostRequests.delete(conn.peer);
+    const peerId = conn.peer;
+    tabData.connections.delete(peerId);
+    tabData.hostRequests.delete(peerId);
 
     chrome.runtime.sendMessage({
       type: "CONNECTED_PEERS_UPDATE",
       tabId,
       connectedPeers: Array.from(tabData.connections.keys()),
+    });
+
+    // Notify content script about peer disconnect
+    chrome.runtime.sendMessage({
+      type: "NOTIFY_PEER_DISCONNECTED",
+      tabId,
+      peerId,
     });
 
     // Notify content script to stop sync if no more connections
@@ -354,7 +375,7 @@ function setupConnection(tabId, conn, becomeHost = false) {
     }
 
     sendRoleUpdate(tabId);
-    sendStatus(tabId, `${conn.peer} disconnected`, "warning");
+    sendStatus(tabId, `${peerId} disconnected`, "warning");
   });
 }
 

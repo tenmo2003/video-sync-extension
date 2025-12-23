@@ -84,6 +84,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     }
   }
+  // Route peer events to content script
+  else if (msg.type === "NOTIFY_PEER_JOINED" || msg.type === "NOTIFY_PEER_DISCONNECTED" || msg.type === "NOTIFY_PEER_REQUESTING_HOST") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      const eventType = msg.type.replace("NOTIFY_", "");
+      chrome.tabs.sendMessage(tabId, {
+        type: eventType,
+        peerId: msg.peerId,
+      });
+    }
+  }
   // Forward these messages directly (popup listens to runtime messages)
   // PEER_INFO, CONNECTION_STATUS, CONNECTED_PEERS_UPDATE are handled by popup
 });
