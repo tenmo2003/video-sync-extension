@@ -55,7 +55,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   }
   // Messages from popup that need tab info added
-  else if (msg.type === "INIT_PEER" || msg.type === "GET_PEER_INFO" || msg.type === "CONNECT_TO") {
+  else if (
+    msg.type === "INIT_PEER" ||
+    msg.type === "GET_PEER_INFO" ||
+    msg.type === "CONNECT_TO" ||
+    msg.type === "DISCONNECT_PEER" ||
+    msg.type === "DISCONNECT_ALL" ||
+    msg.type === "REQUEST_HOST" ||
+    msg.type === "PROMOTE_PEER"
+  ) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
         sendToOffscreen({
@@ -65,6 +73,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         });
       }
     });
+  }
+  // Route role updates to content script
+  else if (msg.type === "NOTIFY_CONTENT_ROLE") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "ROLE_UPDATE",
+        isHost: msg.isHost,
+      });
+    }
   }
   // Forward these messages directly (popup listens to runtime messages)
   // PEER_INFO, CONNECTION_STATUS, CONNECTED_PEERS_UPDATE are handled by popup

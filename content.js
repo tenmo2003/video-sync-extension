@@ -3,6 +3,7 @@ let isRemoteUpdate = false; // Flag to prevent infinite loops
 let syncIntervalId = null;
 let toastElement = null;
 let toastTimeout = null;
+let isHost = false; // Only host can send video events
 
 // Default settings (will be overwritten by stored settings)
 let settings = {
@@ -88,7 +89,7 @@ function showSyncToast(message) {
 }
 
 function sendVideoState() {
-  if (!video || isRemoteUpdate) return;
+  if (!video || isRemoteUpdate || !isHost) return;
 
   chrome.runtime.sendMessage({
     type: "VIDEO_EVENT",
@@ -116,10 +117,10 @@ function stopSyncInterval() {
 function setupVideoListeners() {
   if (!video) return;
 
-  // 1. LISTEN: Capture local user actions
+  // 1. LISTEN: Capture local user actions (only send if host)
   ["play", "pause", "seeked"].forEach((event) => {
     video.addEventListener(event, () => {
-      if (isRemoteUpdate) return; // Ignore if we just applied a remote change
+      if (isRemoteUpdate || !isHost) return; // Ignore if remote update or not host
 
       chrome.runtime.sendMessage({
         type: "VIDEO_EVENT",
@@ -171,14 +172,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else {
       if (action === "pause") {
         video.pause();
-        showSyncToast("Paused by peer");
+        showSyncToast("Paused by host");
       }
       if (action === "play") {
         video.play();
-        showSyncToast("Played by peer");
+        showSyncToast("Played by host");
       }
       if (action === "seeked") {
-        showSyncToast("Seeked by peer");
+        showSyncToast("Seeked by host");
       }
     }
 
@@ -203,6 +204,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       startSyncInterval();
     } else {
       stopSyncInterval();
+      isHost = false; // Reset host status when disconnected
+    }
+  }
+
+  // Update host role
+  if (msg.type === "ROLE_UPDATE") {
+    isHost = msg.isHost || false;
+    if (isHost) {
+      showSyncToast("You are now the host");
+    } else {
+      showSyncToast("You are now a guest");
     }
   }
 });
