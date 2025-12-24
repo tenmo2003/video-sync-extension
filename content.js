@@ -10,7 +10,7 @@ let peersConnected = false; // Track if we have peers
 // Default settings (will be overwritten by stored settings)
 let settings = {
   syncInterval: 1000,
-  allowedOffset: 0.5,
+  allowedOffset: 0.3,
   toastEnabled: true,
   toastDuration: 1500,
 };

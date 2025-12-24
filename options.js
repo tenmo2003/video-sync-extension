@@ -1,7 +1,7 @@
 // Default settings
 const DEFAULT_SETTINGS = {
   syncInterval: 1000,
-  allowedOffset: 0.5,
+  allowedOffset: 0.3,
   toastEnabled: true,
   toastDuration: 1500,
 };
@@ -38,4 +38,3 @@ function saveSettings() {
 // Initialize
 document.addEventListener("DOMContentLoaded", loadSettings);
 document.getElementById("save").addEventListener("click", saveSettings);
-
