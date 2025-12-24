@@ -169,6 +169,11 @@ function setupVideoListeners() {
 // 2. APPLY: Receive actions from host & respond to status checks
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "CHECK_VIDEO_STATUS") {
+    if (video) {
+      // avoid setting up twice
+      sendResponse({ hasVideo: !!video });
+      return true;
+    }
     // Re-check for video element (it might have loaded dynamically)
     video = document.querySelector("video");
     sendResponse({ hasVideo: !!video });
