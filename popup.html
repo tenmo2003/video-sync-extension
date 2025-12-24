@@ -35,12 +35,22 @@
     #role-indicator.guest { background: #e2e3e5; color: #383d41; }
     #request-host-btn { margin-top: 8px; font-size: 12px; padding: 4px 8px; cursor: pointer; display: none; background: #ffc107; border: 1px solid #e0a800; color: #212529; }
     #request-host-btn:hover { background: #e0a800; }
+    .nickname-row { margin-bottom: 8px; display: flex; gap: 6px; }
+    #nickname-input { flex: 1; box-sizing: border-box; padding: 6px; font-size: 13px; }
+    #nickname-save-btn { padding: 6px 10px; cursor: pointer; font-size: 12px; }
+    #nickname-save-btn.saved { background: #d4edda; }
+    .peer-nickname { font-weight: bold; }
+    .peer-id-small { font-size: 10px; color: #666; margin-left: 4px; }
   </style>
 </head>
 <body>
   <h3>Video Sync</h3>
   <div id="video-status" class="status info" style="display: none;">Checking for video...</div>
   <div id="main-content">
+  <div class="nickname-row">
+    <input type="text" id="nickname-input" placeholder="Enter your nickname..." maxlength="20">
+    <button id="nickname-save-btn">Save</button>
+  </div>
   <div class="id-row">
     <strong>My ID:</strong>
     <span id="my-id">Generating...</span>

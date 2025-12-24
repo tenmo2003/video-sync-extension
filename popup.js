@@ -2,6 +2,8 @@ let currentTabId = null;
 let myPeerId = null;
 let isHost = false;
 let hostRequests = [];
+let myNickname = "";
+let peerNicknames = {}; // peerId -> nickname
 
 // Status display helpers
 function setVideoStatus(hasVideo) {
@@ -22,6 +24,14 @@ function setConnectionStatus(status, type = "info") {
   const el = document.getElementById("connection-status");
   el.className = `status ${type}`;
   el.innerText = status;
+}
+
+function formatPeerDisplay(peerId) {
+  const nickname = peerNicknames[peerId];
+  if (nickname) {
+    return `<span class="peer-nickname">${nickname}</span><span class="peer-id-small">(${peerId})</span>`;
+  }
+  return peerId;
 }
 
 function updatePeerList(peers) {
@@ -46,7 +56,7 @@ function updatePeerList(peers) {
         const requestLabel = isRequesting ? " (requesting)" : "";
         return `
         <div class="${itemClass}">
-          <span class="peer-id">${p}${requestLabel}</span>
+          <span class="peer-id">${formatPeerDisplay(p)}${requestLabel}</span>
           ${promoteBtn}
           <button class="disconnect-btn" data-peer-id="${p}">X</button>
         </div>
@@ -149,6 +159,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     setMyId(msg.id);
     isHost = msg.isHost || false;
     hostRequests = msg.hostRequests || [];
+    peerNicknames = msg.peerNicknames || {};
     const peers = msg.connectedPeers || [];
     updatePeerList(peers);
     updateRoleIndicator(peers.length > 0);
@@ -157,6 +168,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     setConnectionStatus(msg.status, msg.statusType || "info");
   }
   if (msg.type === "CONNECTED_PEERS_UPDATE") {
+    peerNicknames = msg.peerNicknames || peerNicknames;
     const peers = msg.connectedPeers || [];
     updatePeerList(peers);
     updateRoleIndicator(peers.length > 0);
@@ -167,8 +179,8 @@ chrome.runtime.onMessage.addListener((msg) => {
     // Re-render peer list with updated role info
     const peerListEl = document.getElementById("peer-list");
     const currentPeers = Array.from(
-      peerListEl.querySelectorAll(".peer-id"),
-    ).map((el) => el.textContent.replace(" (requesting)", ""));
+      peerListEl.querySelectorAll(".disconnect-btn"),
+    ).map((el) => el.getAttribute("data-peer-id"));
     updatePeerList(currentPeers);
     updateRoleIndicator(currentPeers.length > 0);
   }
@@ -214,4 +226,41 @@ document.getElementById("disconnect-all").addEventListener("click", () => {
 // Request host button
 document.getElementById("request-host-btn").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "REQUEST_HOST" });
+});
+
+// Nickname handling
+const nicknameInput = document.getElementById("nickname-input");
+const nicknameSaveBtn = document.getElementById("nickname-save-btn");
+
+// Load saved nickname
+chrome.storage.sync.get(["nickname"], (result) => {
+  if (result.nickname) {
+    myNickname = result.nickname;
+    nicknameInput.value = myNickname;
+  }
+});
+
+// Save nickname function
+function saveNickname() {
+  myNickname = nicknameInput.value.trim();
+  chrome.storage.sync.set({ nickname: myNickname });
+  // Notify offscreen about nickname change
+  chrome.runtime.sendMessage({ type: "UPDATE_NICKNAME", nickname: myNickname });
+  // Visual feedback
+  nicknameSaveBtn.textContent = "Saved!";
+  nicknameSaveBtn.classList.add("saved");
+  setTimeout(() => {
+    nicknameSaveBtn.textContent = "Save";
+    nicknameSaveBtn.classList.remove("saved");
+  }, 1500);
+}
+
+// Save on button click
+nicknameSaveBtn.addEventListener("click", saveNickname);
+
+// Save on Enter key
+nicknameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    saveNickname();
+  }
 });

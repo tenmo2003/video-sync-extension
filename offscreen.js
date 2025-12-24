@@ -1,5 +1,5 @@
 // Store peers and connections per tab URL
-// tabId -> { peer, url, connections: Map<peerId, conn>, isHost: boolean, hostRequests: Set<peerId> }
+// tabId -> { peer, url, connections: Map<peerId, conn>, isHost: boolean, hostRequests: Set<peerId>, nickname: string, peerNicknames: Map<peerId, nickname> }
 const tabPeers = new Map();
 
 // Listen for messages from the Background script
@@ -8,7 +8,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   // This prevents double-processing when popup sends directly
   if (msg.type === "INIT_PEER") {
     if (!msg.tabId) return; // Ignore messages without tabId
-    initOrGetPeer(msg.tabId, msg.tabUrl);
+    initOrGetPeer(msg.tabId, msg.tabUrl, msg.nickname || "");
   } else if (msg.type === "GET_PEER_INFO") {
     if (!msg.tabId) return;
     sendPeerInfo(msg.tabId);
@@ -63,6 +63,18 @@ chrome.runtime.onMessage.addListener((msg) => {
       connected: tabData ? tabData.connections.size > 0 : false,
       isHost: tabData ? tabData.isHost : false,
     });
+  } else if (msg.type === "UPDATE_NICKNAME") {
+    if (!msg.tabId) return;
+    const tabData = tabPeers.get(msg.tabId);
+    if (tabData) {
+      tabData.nickname = msg.nickname || "";
+      // Broadcast nickname update to all connected peers
+      tabData.connections.forEach((conn) => {
+        if (conn.open) {
+          conn.send({ type: "NICKNAME_UPDATE", nickname: tabData.nickname, peerId: tabData.peer.id });
+        }
+      });
+    }
   }
 });
 
@@ -86,6 +98,7 @@ function sendPeerInfo(tabId) {
       connectedPeers,
       isHost: tabData.isHost,
       hostRequests: Array.from(tabData.hostRequests || []),
+      peerNicknames: Object.fromEntries(tabData.peerNicknames || new Map()),
     });
   }
 }
@@ -110,13 +123,14 @@ function sendRoleUpdate(tabId) {
   }
 }
 
-function initOrGetPeer(tabId, tabUrl) {
+function initOrGetPeer(tabId, tabUrl, nickname = "") {
   const existing = tabPeers.get(tabId);
 
   // If peer exists for this tab, reuse it (even if URL changed)
   if (existing && existing.peer && !existing.peer.destroyed) {
-    // Update the URL but keep the peer and connections
+    // Update the URL and nickname but keep the peer and connections
     existing.url = tabUrl;
+    existing.nickname = nickname;
     // Just send back the existing peer info
     sendPeerInfo(tabId);
     sendStatus(
@@ -132,7 +146,8 @@ function initOrGetPeer(tabId, tabUrl) {
     cleanupTab(tabId);
   }
 
-  setupPeer(tabId, tabUrl);
+  // Nickname is passed from background.js which has storage access
+  setupPeer(tabId, tabUrl, nickname);
 }
 
 function cleanupTab(tabId) {
@@ -146,7 +161,7 @@ function cleanupTab(tabId) {
   }
 }
 
-function setupPeer(tabId, tabUrl) {
+function setupPeer(tabId, tabUrl, nickname = "") {
   const peer = new Peer(); // Auto-generates an ID from PeerJS cloud server
   const tabData = {
     peer,
@@ -155,6 +170,8 @@ function setupPeer(tabId, tabUrl) {
     isHost: false, // Will be set when connection is established
     hostRequests: new Set(),
     hostPeerId: null, // The host's peer ID (for redirecting new connections)
+    nickname: nickname, // User's nickname
+    peerNicknames: new Map(), // peerId -> nickname
   };
   tabPeers.set(tabId, tabData);
 
@@ -166,6 +183,7 @@ function setupPeer(tabId, tabUrl) {
       connectedPeers: [],
       isHost: false,
       hostRequests: [],
+      peerNicknames: {},
     });
   });
 
@@ -293,6 +311,7 @@ function setupConnection(tabId, conn, becomeHost = false) {
     type: "CONNECTED_PEERS_UPDATE",
     tabId,
     connectedPeers: Array.from(tabData.connections.keys()),
+    peerNicknames: Object.fromEntries(tabData.peerNicknames || new Map()),
   });
 
   // Notify content script to start sync if this is the first connection
@@ -300,14 +319,39 @@ function setupConnection(tabId, conn, becomeHost = false) {
     notifyPeersConnected(tabId, true);
   }
 
-  // Notify content script about peer join
+  // Notify content script about peer join (will be updated when nickname received)
   chrome.runtime.sendMessage({
     type: "NOTIFY_PEER_JOINED",
     tabId,
     peerId: conn.peer,
+    nickname: tabData.peerNicknames.get(conn.peer) || null,
   });
 
+  // Send our nickname to the peer
+  if (tabData.nickname) {
+    conn.send({ type: "NICKNAME_UPDATE", nickname: tabData.nickname, peerId: tabData.peer.id });
+  }
+
   conn.on("data", (data) => {
+    // Handle nickname updates
+    if (data.type === "NICKNAME_UPDATE") {
+      tabData.peerNicknames.set(data.peerId, data.nickname);
+      // Notify popup about updated nicknames
+      chrome.runtime.sendMessage({
+        type: "CONNECTED_PEERS_UPDATE",
+        tabId,
+        connectedPeers: Array.from(tabData.connections.keys()),
+        peerNicknames: Object.fromEntries(tabData.peerNicknames),
+      });
+      // Notify content script about nickname update for toasts
+      chrome.runtime.sendMessage({
+        type: "NOTIFY_PEER_NICKNAME",
+        tabId,
+        peerId: data.peerId,
+        nickname: data.nickname,
+      });
+      return;
+    }
     // Handle role-related messages
     if (data.type === "HOST_REQUEST") {
       // A guest is requesting host control
@@ -392,13 +436,16 @@ function setupConnection(tabId, conn, becomeHost = false) {
 
   conn.on("close", () => {
     const peerId = conn.peer;
+    const nickname = tabData.peerNicknames.get(peerId);
     tabData.connections.delete(peerId);
     tabData.hostRequests.delete(peerId);
+    tabData.peerNicknames.delete(peerId);
 
     chrome.runtime.sendMessage({
       type: "CONNECTED_PEERS_UPDATE",
       tabId,
       connectedPeers: Array.from(tabData.connections.keys()),
+      peerNicknames: Object.fromEntries(tabData.peerNicknames),
     });
 
     // Notify content script about peer disconnect
@@ -406,6 +453,7 @@ function setupConnection(tabId, conn, becomeHost = false) {
       type: "NOTIFY_PEER_DISCONNECTED",
       tabId,
       peerId,
+      nickname,
     });
 
     // Notify content script to stop sync if no more connections
@@ -417,7 +465,8 @@ function setupConnection(tabId, conn, becomeHost = false) {
     }
 
     sendRoleUpdate(tabId);
-    sendStatus(tabId, `${peerId} disconnected`, "warning");
+    const displayName = nickname || peerId;
+    sendStatus(tabId, `${displayName} disconnected`, "warning");
   });
 }
 

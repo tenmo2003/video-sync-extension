@@ -63,15 +63,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     // Response will be sent via CONNECTION_STATE_RESPONSE message
   }
+  // INIT_PEER needs nickname from storage
+  else if (msg.type === "INIT_PEER") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]) {
+        chrome.storage.sync.get(["nickname"], (result) => {
+          sendToOffscreen({
+            ...msg,
+            tabId: tabs[0].id,
+            tabUrl: tabs[0].url,
+            nickname: result.nickname || ""
+          });
+        });
+      }
+    });
+  }
   // Messages from popup that need tab info added
   else if (
-    msg.type === "INIT_PEER" ||
     msg.type === "GET_PEER_INFO" ||
     msg.type === "CONNECT_TO" ||
     msg.type === "DISCONNECT_PEER" ||
     msg.type === "DISCONNECT_ALL" ||
     msg.type === "REQUEST_HOST" ||
-    msg.type === "PROMOTE_PEER"
+    msg.type === "PROMOTE_PEER" ||
+    msg.type === "UPDATE_NICKNAME"
   ) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
@@ -102,6 +117,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.tabs.sendMessage(tabId, {
         type: eventType,
         peerId: msg.peerId,
+        nickname: msg.nickname,
+      });
+    }
+  }
+  // Route peer nickname updates to content script
+  else if (msg.type === "NOTIFY_PEER_NICKNAME") {
+    const tabId = msg.tabId;
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "PEER_NICKNAME",
+        peerId: msg.peerId,
+        nickname: msg.nickname,
       });
     }
   }

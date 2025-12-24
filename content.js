@@ -5,6 +5,11 @@ let toastElement = null;
 let toastTimeout = null;
 let isHost = false; // Only host can send video events
 let peersConnected = false; // Track if we have peers
+let peerNicknames = {}; // peerId -> nickname for display in toasts
+
+function getPeerDisplayName(peerId, nickname) {
+  return nickname || peerNicknames[peerId] || peerId;
+}
 
 // Default settings (will be overwritten by stored settings)
 let settings = {
@@ -266,13 +271,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Peer events
   if (msg.type === "PEER_JOINED") {
-    showSyncToast(`${msg.peerId} joined`);
+    const displayName = getPeerDisplayName(msg.peerId, msg.nickname);
+    showSyncToast(`${displayName} joined`);
   }
   if (msg.type === "PEER_DISCONNECTED") {
-    showSyncToast(`${msg.peerId} disconnected`);
+    const displayName = getPeerDisplayName(msg.peerId, msg.nickname);
+    showSyncToast(`${displayName} disconnected`);
+    // Clean up nickname
+    delete peerNicknames[msg.peerId];
   }
   if (msg.type === "PEER_REQUESTING_HOST") {
-    showSyncToast(`${msg.peerId} is requesting control`);
+    const displayName = getPeerDisplayName(msg.peerId, msg.nickname);
+    showSyncToast(`${displayName} is requesting control`);
+  }
+  // Peer nickname update
+  if (msg.type === "PEER_NICKNAME") {
+    peerNicknames[msg.peerId] = msg.nickname;
   }
 
   // Host left video page
