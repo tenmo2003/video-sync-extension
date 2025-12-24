@@ -48,19 +48,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   // Route messages from Content Script -> Offscreen (add tabId)
   else if (msg.type === "VIDEO_EVENT" || msg.type === "VIDEO_CHANGED" || msg.type === "NO_VIDEO_DISCONNECT") {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        sendToOffscreen({ ...msg, tabId: tabs[0].id });
-      }
-    });
+    // Use sender.tab.id to get the actual tab that sent the message
+    // This ensures sync works even when tab is not focused
+    if (sender.tab?.id) {
+      sendToOffscreen({ ...msg, tabId: sender.tab.id });
+    }
   }
   // Query connection state for content script (needs async response)
   else if (msg.type === "GET_CONNECTION_STATE") {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        sendToOffscreen({ type: "GET_CONNECTION_STATE", tabId: tabs[0].id });
-      }
-    });
+    // Use sender.tab.id to get the actual tab that sent the message
+    if (sender.tab?.id) {
+      sendToOffscreen({ type: "GET_CONNECTION_STATE", tabId: sender.tab.id });
+    }
     // Response will be sent via CONNECTION_STATE_RESPONSE message
   }
   // INIT_PEER needs nickname from storage
