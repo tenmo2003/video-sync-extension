@@ -4,7 +4,6 @@ let syncIntervalId = null;
 let toastElement = null;
 let toastTimeout = null;
 let isHost = false; // Only host can send video events
-let lastVideoUrl = null; // Track video URL changes
 let peersConnected = false; // Track if we have peers
 
 // Default settings (will be overwritten by stored settings)
@@ -120,27 +119,20 @@ function getPageUrl() {
   return window.location.href;
 }
 
-function checkVideoChange() {
+function sendCurrentVideoUrl() {
   if (!isHost || !peersConnected) return;
 
-  const currentUrl = getPageUrl();
-  if (lastVideoUrl && lastVideoUrl !== currentUrl) {
-    // Video/page changed, notify peers
-    chrome.runtime.sendMessage({
-      type: "VIDEO_CHANGED",
-      data: {
-        newUrl: currentUrl,
-      },
-    });
-  }
-  lastVideoUrl = currentUrl;
+  // Send current URL to peers - they will decide if they need to navigate
+  chrome.runtime.sendMessage({
+    type: "VIDEO_CHANGED",
+    data: {
+      newUrl: getPageUrl(),
+    },
+  });
 }
 
 function setupVideoListeners() {
   if (!video) return;
-
-  // Track initial URL
-  lastVideoUrl = getPageUrl();
 
   // 1. LISTEN: Capture local user actions (only send if host)
   ["play", "pause", "seeked"].forEach((event) => {
@@ -161,7 +153,7 @@ function setupVideoListeners() {
   // Listen for video source changes (for sites that change video without page reload)
   video.addEventListener("loadeddata", () => {
     if (isHost && peersConnected) {
-      checkVideoChange();
+      sendCurrentVideoUrl();
     }
   });
 }
@@ -253,7 +245,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     isHost = msg.isHost || false;
     if (isHost) {
       showSyncToast("You are now the host");
-      lastVideoUrl = getPageUrl(); // Start tracking URL as host
     } else {
       showSyncToast("You are now a guest");
     }
@@ -308,13 +299,25 @@ function queryConnectionState() {
 function handleConnectionState(connected, hostStatus) {
   peersConnected = connected;
   isHost = hostStatus;
-  lastVideoUrl = getPageUrl();
 
-  // Now check if we should disconnect (no video but was connected)
+  // Check for video
   video = document.querySelector("video");
+
+  // If no video but was connected, disconnect
   if (!video && peersConnected) {
     chrome.runtime.sendMessage({
       type: "NO_VIDEO_DISCONNECT",
+    });
+    return;
+  }
+
+  // If host and connected with video, notify guests of current URL
+  if (isHost && peersConnected && video) {
+    chrome.runtime.sendMessage({
+      type: "VIDEO_CHANGED",
+      data: {
+        newUrl: getPageUrl(),
+      },
     });
   }
 }
