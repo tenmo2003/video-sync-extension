@@ -240,9 +240,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
 
-  // Update host role
+  // Update host role and connection status
   if (msg.type === "ROLE_UPDATE") {
     isHost = msg.isHost || false;
+    if (msg.connected !== undefined) {
+      peersConnected = msg.connected;
+    }
     if (isHost) {
       showSyncToast("You are now the host");
     } else {

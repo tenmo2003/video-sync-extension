@@ -93,17 +93,19 @@ function sendPeerInfo(tabId) {
 function sendRoleUpdate(tabId) {
   const tabData = tabPeers.get(tabId);
   if (tabData) {
+    const connected = tabData.connections.size > 0;
     chrome.runtime.sendMessage({
       type: "ROLE_UPDATE",
       tabId,
       isHost: tabData.isHost,
       hostRequests: Array.from(tabData.hostRequests || []),
     });
-    // Notify content script about role
+    // Notify content script about role and connection status
     chrome.runtime.sendMessage({
       type: "NOTIFY_CONTENT_ROLE",
       tabId,
       isHost: tabData.isHost,
+      connected,
     });
   }
 }

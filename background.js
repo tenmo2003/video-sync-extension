@@ -90,6 +90,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       chrome.tabs.sendMessage(tabId, {
         type: "ROLE_UPDATE",
         isHost: msg.isHost,
+        connected: msg.connected,
       });
     }
   }
