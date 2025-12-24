@@ -30,7 +30,7 @@
     #disconnect-all.end-party:hover { background: #c82333; }
     #connect-section { margin-top: 8px; }
     #connect-section.hidden { display: none; }
-    #role-indicator { padding: 6px 10px; border-radius: 4px; margin: 8px 0; font-size: 13px; font-weight: bold; display: none; }
+    #role-indicator { padding: 6px 10px; border-radius: 4px; margin: 8px 0; font-size: 13px; font-weight: bold; display: none; text-align: center; }
     #role-indicator.host { background: #d4edda; color: #155724; }
     #role-indicator.guest { background: #e2e3e5; color: #383d41; }
     #request-host-btn { margin-top: 8px; font-size: 12px; padding: 4px 8px; cursor: pointer; display: none; background: #ffc107; border: 1px solid #e0a800; color: #212529; }
@@ -56,8 +56,8 @@
     <span id="my-id">Generating...</span>
     <button id="copy-btn" title="Copy ID">Copy</button>
   </div>
-  <div id="connection-status" class="status info">Not connected</div>
   <div id="role-indicator"></div>
+  <div id="connection-status" class="status info">Not connected</div>
   <div class="connected-peers">
     <h4 id="peers-heading">Connected Peers:</h4>
     <div id="peer-list" class="peer-list"></div>

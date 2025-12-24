@@ -113,11 +113,11 @@ function updateRoleIndicator(hasConnections) {
   el.style.display = "block";
   if (isHost) {
     el.className = "host";
-    el.innerText = "You are the Host (you control the video)";
+    el.innerText = "HOST MODE";
     requestHostBtn.style.display = "none";
   } else {
     el.className = "guest";
-    el.innerText = "You are a Guest (video is controlled by host)";
+    el.innerText = "GUEST MODE";
     requestHostBtn.style.display = "block";
   }
 }
