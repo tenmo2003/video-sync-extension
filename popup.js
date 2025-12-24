@@ -29,7 +29,7 @@ function setConnectionStatus(status, type = "info") {
 function formatPeerDisplay(peerId) {
   const nickname = peerNicknames[peerId];
   if (nickname) {
-    return `<span class="peer-nickname">${nickname}</span><span class="peer-id-small">(${peerId})</span>`;
+    return `<span class="peer-nickname" data-peer-id="${peerId}" title="${peerId}">${nickname}</span>`;
   }
   return peerId;
 }
@@ -97,6 +97,23 @@ function updatePeerList(peers) {
         chrome.runtime.sendMessage({ type: "PROMOTE_PEER", peerId });
       });
     });
+
+    // Add click handlers for nickname spans to copy peer ID (host only)
+    if (isHost) {
+      el.querySelectorAll(".peer-nickname").forEach((span) => {
+        span.style.cursor = "pointer";
+        span.addEventListener("click", () => {
+          const peerId = span.getAttribute("data-peer-id");
+          navigator.clipboard.writeText(peerId).then(() => {
+            const originalText = span.textContent;
+            span.textContent = "Copied guest ID!";
+            setTimeout(() => {
+              span.textContent = originalText;
+            }, 1500);
+          });
+        });
+      });
+    }
   }
 }
 
