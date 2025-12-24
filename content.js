@@ -355,7 +355,7 @@ function checkInviteLink() {
     // Send auto-connect request to background
     chrome.runtime.sendMessage({
       type: "AUTO_CONNECT",
-      hostId: hostId
+      hostId: hostId,
     });
   }
 }

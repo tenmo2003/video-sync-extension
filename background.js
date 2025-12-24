@@ -47,7 +47,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
   // Route messages from Content Script -> Offscreen (add tabId)
-  else if (msg.type === "VIDEO_EVENT" || msg.type === "VIDEO_CHANGED" || msg.type === "NO_VIDEO_DISCONNECT") {
+  else if (
+    msg.type === "VIDEO_EVENT" ||
+    msg.type === "VIDEO_CHANGED" ||
+    msg.type === "NO_VIDEO_DISCONNECT"
+  ) {
     // Use sender.tab.id to get the actual tab that sent the message
     // This ensures sync works even when tab is not focused
     if (sender.tab?.id) {
@@ -72,7 +76,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           tabId: sender.tab.id,
           tabUrl: sender.tab.url,
           hostId: msg.hostId,
-          nickname: result.nickname || ""
+          nickname: result.nickname || "",
         });
       });
     }
@@ -86,7 +90,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             ...msg,
             tabId: tabs[0].id,
             tabUrl: tabs[0].url,
-            nickname: result.nickname || ""
+            nickname: result.nickname || "",
           });
         });
       }
@@ -107,7 +111,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendToOffscreen({
           ...msg,
           tabId: tabs[0].id,
-          tabUrl: tabs[0].url
+          tabUrl: tabs[0].url,
         });
       }
     });
@@ -124,7 +128,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
   // Route peer events to content script
-  else if (msg.type === "NOTIFY_PEER_JOINED" || msg.type === "NOTIFY_PEER_DISCONNECTED" || msg.type === "NOTIFY_PEER_REQUESTING_HOST") {
+  else if (
+    msg.type === "NOTIFY_PEER_JOINED" ||
+    msg.type === "NOTIFY_PEER_DISCONNECTED" ||
+    msg.type === "NOTIFY_PEER_REQUESTING_HOST"
+  ) {
     const tabId = msg.tabId;
     if (tabId) {
       const eventType = msg.type.replace("NOTIFY_", "");

@@ -71,7 +71,11 @@ chrome.runtime.onMessage.addListener((msg) => {
       // Broadcast nickname update to all connected peers
       tabData.connections.forEach((conn) => {
         if (conn.open) {
-          conn.send({ type: "NICKNAME_UPDATE", nickname: tabData.nickname, peerId: tabData.peer.id });
+          conn.send({
+            type: "NICKNAME_UPDATE",
+            nickname: tabData.nickname,
+            peerId: tabData.peer.id,
+          });
         }
       });
     }
@@ -213,9 +217,17 @@ function autoConnect(tabId, tabUrl, hostId, nickname = "") {
   peer.on("connection", (conn) => {
     // Handle incoming connections same as setupPeer
     const currentTabData = tabPeers.get(tabId);
-    if (currentTabData && currentTabData.connections.size > 0 && !currentTabData.isHost && currentTabData.hostPeerId) {
+    if (
+      currentTabData &&
+      currentTabData.connections.size > 0 &&
+      !currentTabData.isHost &&
+      currentTabData.hostPeerId
+    ) {
       conn.on("open", () => {
-        conn.send({ type: "REDIRECT_TO_HOST", hostPeerId: currentTabData.hostPeerId });
+        conn.send({
+          type: "REDIRECT_TO_HOST",
+          hostPeerId: currentTabData.hostPeerId,
+        });
         setTimeout(() => conn.close(), 1000);
       });
       return;
@@ -413,7 +425,11 @@ function setupConnection(tabId, conn, becomeHost = false) {
 
   // Send our nickname to the peer
   if (tabData.nickname) {
-    conn.send({ type: "NICKNAME_UPDATE", nickname: tabData.nickname, peerId: tabData.peer.id });
+    conn.send({
+      type: "NICKNAME_UPDATE",
+      nickname: tabData.nickname,
+      peerId: tabData.peer.id,
+    });
   }
 
   conn.on("data", (data) => {
@@ -606,7 +622,10 @@ function noVideoDisconnect(tabId) {
   // Notify all peers that we're disconnecting due to no video
   tabData.connections.forEach((conn) => {
     if (conn.open) {
-      conn.send({ type: "NO_VIDEO_LEFT", reason: "Host navigated to a page without video" });
+      conn.send({
+        type: "NO_VIDEO_LEFT",
+        reason: "Host navigated to a page without video",
+      });
     }
   });
 
