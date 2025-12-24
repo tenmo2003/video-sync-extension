@@ -156,6 +156,7 @@ function setMyId(id) {
     el.innerText = "Generating...";
     el.title = "";
   }
+  updateInviteButton();
 }
 
 // Initialize - get current tab and request peer info
@@ -248,12 +249,14 @@ function generateInviteLink() {
   }
 }
 
-// Update invite button state based on connection status
+// Update invite button state based on connection status and peer initialization
 function updateInviteButton() {
   const btn = document.getElementById("invite-btn");
   // Show invite button only when not connected OR when host
   const canInvite = connectedPeersList.length === 0 || isHost;
   btn.style.display = canInvite ? "block" : "none";
+  // Disable until peer is initialized
+  btn.disabled = !myPeerId;
 }
 
 // Invite button - copy invite link
