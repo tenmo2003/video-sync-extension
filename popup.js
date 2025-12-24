@@ -139,9 +139,21 @@ function updateRoleIndicator(hasConnections) {
   }
 }
 
+function truncateId(id, startChars = 6, endChars = 6) {
+  if (!id || id.length <= startChars + endChars + 3) return id;
+  return `${id.slice(0, startChars)}...${id.slice(-endChars)}`;
+}
+
 function setMyId(id) {
   myPeerId = id;
-  document.getElementById("my-id").innerText = id || "Generating...";
+  const el = document.getElementById("my-id");
+  if (id) {
+    el.innerText = truncateId(id);
+    el.title = id;
+  } else {
+    el.innerText = "Generating...";
+    el.title = "";
+  }
 }
 
 // Initialize - get current tab and request peer info
