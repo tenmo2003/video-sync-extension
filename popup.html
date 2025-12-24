@@ -40,6 +40,10 @@
     #nickname-save-btn { padding: 6px 10px; cursor: pointer; font-size: 12px; }
     #nickname-save-btn.saved { background: #d4edda; }
     .peer-nickname { font-weight: bold; cursor: help; }
+    #invite-btn { width: 100%; padding: 8px; cursor: pointer; font-size: 13px; background: #007bff; color: white; border: 1px solid #0069d9; border-radius: 4px; margin: 8px 0; }
+    #invite-btn:hover { background: #0069d9; }
+    #invite-btn.copied { background: #28a745; border-color: #28a745; }
+    #invite-btn:disabled { background: #6c757d; border-color: #6c757d; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -55,6 +59,7 @@
     <span id="my-id">Generating...</span>
     <button id="copy-btn" title="Copy ID">Copy</button>
   </div>
+  <button id="invite-btn" title="Copy invite link to clipboard">Copy Invite Link</button>
   <div id="role-indicator"></div>
   <div id="connection-status" class="status info">Not connected</div>
   <div class="connected-peers">

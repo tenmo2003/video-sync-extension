@@ -1,9 +1,11 @@
 let currentTabId = null;
+let currentTabUrl = null;
 let myPeerId = null;
 let isHost = false;
 let hostRequests = [];
 let myNickname = "";
 let peerNicknames = {}; // peerId -> nickname
+let connectedPeersList = []; // Track connected peers
 
 // Status display helpers
 function setVideoStatus(hasVideo) {
@@ -160,6 +162,7 @@ function setMyId(id) {
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (tabs[0]) {
     currentTabId = tabs[0].id;
+    currentTabUrl = tabs[0].url;
 
     // Check for video element
     chrome.tabs.sendMessage(
@@ -189,18 +192,20 @@ chrome.runtime.onMessage.addListener((msg) => {
     isHost = msg.isHost || false;
     hostRequests = msg.hostRequests || [];
     peerNicknames = msg.peerNicknames || {};
-    const peers = msg.connectedPeers || [];
-    updatePeerList(peers);
-    updateRoleIndicator(peers.length > 0);
+    connectedPeersList = msg.connectedPeers || [];
+    updatePeerList(connectedPeersList);
+    updateRoleIndicator(connectedPeersList.length > 0);
+    updateInviteButton();
   }
   if (msg.type === "CONNECTION_STATUS") {
     setConnectionStatus(msg.status, msg.statusType || "info");
   }
   if (msg.type === "CONNECTED_PEERS_UPDATE") {
     peerNicknames = msg.peerNicknames || peerNicknames;
-    const peers = msg.connectedPeers || [];
-    updatePeerList(peers);
-    updateRoleIndicator(peers.length > 0);
+    connectedPeersList = msg.connectedPeers || [];
+    updatePeerList(connectedPeersList);
+    updateRoleIndicator(connectedPeersList.length > 0);
+    updateInviteButton();
   }
   if (msg.type === "ROLE_UPDATE") {
     isHost = msg.isHost || false;
@@ -225,6 +230,46 @@ document.getElementById("copy-btn").addEventListener("click", () => {
     btn.classList.add("copied");
     setTimeout(() => {
       btn.textContent = "Copy";
+      btn.classList.remove("copied");
+    }, 2000);
+  });
+});
+
+// Generate invite link with host ID
+function generateInviteLink() {
+  if (!myPeerId || !currentTabUrl) return null;
+
+  try {
+    const url = new URL(currentTabUrl);
+    url.searchParams.set("videosync_host", myPeerId);
+    return url.toString();
+  } catch (e) {
+    return null;
+  }
+}
+
+// Update invite button state based on connection status
+function updateInviteButton() {
+  const btn = document.getElementById("invite-btn");
+  // Show invite button only when not connected OR when host
+  const canInvite = connectedPeersList.length === 0 || isHost;
+  btn.style.display = canInvite ? "block" : "none";
+}
+
+// Invite button - copy invite link
+document.getElementById("invite-btn").addEventListener("click", () => {
+  const inviteLink = generateInviteLink();
+  if (!inviteLink) {
+    setConnectionStatus("Cannot generate invite link", "error");
+    return;
+  }
+
+  navigator.clipboard.writeText(inviteLink).then(() => {
+    const btn = document.getElementById("invite-btn");
+    btn.textContent = "Link Copied!";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "Copy Invite Link";
       btn.classList.remove("copied");
     }, 2000);
   });

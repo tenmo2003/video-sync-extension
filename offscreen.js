@@ -75,6 +75,10 @@ chrome.runtime.onMessage.addListener((msg) => {
         }
       });
     }
+  } else if (msg.type === "AUTO_CONNECT") {
+    if (!msg.tabId) return;
+    // Initialize peer if needed, then auto-connect to host
+    autoConnect(msg.tabId, msg.tabUrl, msg.hostId, msg.nickname || "");
   }
 });
 
@@ -148,6 +152,86 @@ function initOrGetPeer(tabId, tabUrl, nickname = "") {
 
   // Nickname is passed from background.js which has storage access
   setupPeer(tabId, tabUrl, nickname);
+}
+
+// Auto-connect to a host from an invite link
+function autoConnect(tabId, tabUrl, hostId, nickname = "") {
+  const existing = tabPeers.get(tabId);
+
+  // If peer exists and is connected, don't auto-connect
+  if (existing && existing.peer && !existing.peer.destroyed) {
+    if (existing.connections.size > 0) {
+      sendStatus(tabId, "Already connected to a room", "warning");
+      return;
+    }
+    // Peer exists but not connected - connect to host
+    existing.url = tabUrl;
+    existing.nickname = nickname;
+    connectToPeer(tabId, hostId);
+    return;
+  }
+
+  // No peer exists - create one and connect after it's ready
+  if (existing) {
+    cleanupTab(tabId);
+  }
+
+  const peer = new Peer();
+  const tabData = {
+    peer,
+    url: tabUrl,
+    connections: new Map(),
+    isHost: false,
+    hostRequests: new Set(),
+    hostPeerId: null,
+    nickname: nickname,
+    peerNicknames: new Map(),
+    pendingAutoConnect: hostId, // Store host ID to connect after peer opens
+  };
+  tabPeers.set(tabId, tabData);
+
+  peer.on("open", (id) => {
+    chrome.runtime.sendMessage({
+      type: "PEER_INFO",
+      tabId,
+      id,
+      connectedPeers: [],
+      isHost: false,
+      hostRequests: [],
+      peerNicknames: {},
+    });
+
+    // Auto-connect to the host
+    if (tabData.pendingAutoConnect) {
+      const hostIdToConnect = tabData.pendingAutoConnect;
+      delete tabData.pendingAutoConnect;
+      sendStatus(tabId, "Connecting to host...", "info");
+      connectToPeer(tabId, hostIdToConnect);
+    }
+  });
+
+  peer.on("connection", (conn) => {
+    // Handle incoming connections same as setupPeer
+    const currentTabData = tabPeers.get(tabId);
+    if (currentTabData && currentTabData.connections.size > 0 && !currentTabData.isHost && currentTabData.hostPeerId) {
+      conn.on("open", () => {
+        conn.send({ type: "REDIRECT_TO_HOST", hostPeerId: currentTabData.hostPeerId });
+        setTimeout(() => conn.close(), 1000);
+      });
+      return;
+    }
+    if (currentTabData && currentTabData.isHost) {
+      setupConnection(tabId, conn, true);
+      sendStatus(tabId, `${conn.peer} connected!`, "success");
+      return;
+    }
+    setupConnection(tabId, conn, true);
+    sendStatus(tabId, `${conn.peer} connected! You are the host.`, "success");
+  });
+
+  peer.on("error", (err) => {
+    sendStatus(tabId, `Error: ${err.type}`, "error");
+  });
 }
 
 function cleanupTab(tabId) {

@@ -62,6 +62,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     // Response will be sent via CONNECTION_STATE_RESPONSE message
   }
+  // Auto-connect from invite link (from content script)
+  else if (msg.type === "AUTO_CONNECT") {
+    if (sender.tab?.id) {
+      // First ensure peer is initialized, then connect
+      chrome.storage.sync.get(["nickname"], (result) => {
+        sendToOffscreen({
+          type: "AUTO_CONNECT",
+          tabId: sender.tab.id,
+          tabUrl: sender.tab.url,
+          hostId: msg.hostId,
+          nickname: result.nickname || ""
+        });
+      });
+    }
+  }
   // INIT_PEER needs nickname from storage
   else if (msg.type === "INIT_PEER") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

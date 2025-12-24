@@ -339,9 +339,34 @@ function handleConnectionState(connected, hostStatus) {
   }
 }
 
+// Check for invite link parameter and auto-connect
+function checkInviteLink() {
+  const url = new URL(window.location.href);
+  const hostId = url.searchParams.get("videosync_host");
+
+  if (hostId) {
+    // Remove the parameter from URL to clean it up (without reload)
+    url.searchParams.delete("videosync_host");
+    window.history.replaceState({}, document.title, url.toString());
+
+    // Show toast about auto-connecting
+    showSyncToast("Joining sync room...");
+
+    // Send auto-connect request to background
+    chrome.runtime.sendMessage({
+      type: "AUTO_CONNECT",
+      hostId: hostId
+    });
+  }
+}
+
 // Run state query after page is fully loaded
 if (document.readyState === "complete") {
   queryConnectionState();
+  checkInviteLink();
 } else {
-  window.addEventListener("load", queryConnectionState);
+  window.addEventListener("load", () => {
+    queryConnectionState();
+    checkInviteLink();
+  });
 }
