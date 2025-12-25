@@ -134,6 +134,7 @@ function sendPeerInfo(tabId) {
       id: tabData.peer.id,
       connectedPeers,
       isHost: tabData.isHost,
+      hostPeerId: tabData.hostPeerId || null,
       hostRequests: Array.from(tabData.hostRequests || []),
       peerNicknames: Object.fromEntries(tabData.peerNicknames || new Map()),
     });

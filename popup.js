@@ -2,6 +2,7 @@ let currentTabId = null;
 let currentTabUrl = null;
 let myPeerId = null;
 let isHost = false;
+let hostPeerId = null; // Track the host's peer ID (for guests to generate invite links)
 let hostRequests = [];
 let myNickname = "";
 let peerNicknames = {}; // peerId -> nickname
@@ -62,12 +63,16 @@ function updatePeerList(peers) {
         const promoteBtn = isHost
           ? `<button class="promote-btn" data-peer-id="${p}">Promote</button>`
           : "";
+        // Only show disconnect (X) button for hosts
+        const disconnectBtn = isHost
+          ? `<button class="disconnect-btn" data-peer-id="${p}">X</button>`
+          : "";
         const requestLabel = isRequesting ? " (requesting)" : "";
         return `
         <div class="${itemClass}">
           <span class="peer-id">${formatPeerDisplay(p)}${requestLabel}</span>
           ${promoteBtn}
-          <button class="disconnect-btn" data-peer-id="${p}">X</button>
+          ${disconnectBtn}
         </div>
       `;
       })
@@ -198,6 +203,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "PEER_INFO") {
     setMyId(msg.id);
     isHost = msg.isHost || false;
+    hostPeerId = msg.hostPeerId || null;
     hostRequests = msg.hostRequests || [];
     peerNicknames = msg.peerNicknames || {};
     connectedPeersList = msg.connectedPeers || [];
@@ -245,11 +251,16 @@ document.getElementById("copy-btn").addEventListener("click", () => {
 
 // Generate invite link with host ID
 function generateInviteLink() {
-  if (!myPeerId || !currentTabUrl) return null;
+  if (!currentTabUrl) return null;
+
+  // Use host's peer ID for the invite link
+  // If we're the host, use our own ID; if guest, use the stored hostPeerId
+  const inviteHostId = isHost ? myPeerId : hostPeerId;
+  if (!inviteHostId) return null;
 
   try {
     const url = new URL(currentTabUrl);
-    url.searchParams.set("videosync_host", myPeerId);
+    url.searchParams.set("videosync_host", inviteHostId);
     return url.toString();
   } catch (e) {
     return null;
@@ -259,13 +270,15 @@ function generateInviteLink() {
 // Update invite button state based on connection status and peer initialization
 function updateInviteButton() {
   const btn = document.getElementById("invite-btn");
-  // Show invite button only when:
-  // 1. There's a video on the page (can't host without video)
-  // 2. AND (not connected OR is host)
-  const canInvite = hasVideoOnPage && (connectedPeersList.length === 0 || isHost);
+  // Show invite button when:
+  // 1. Not connected yet (can create new room if has video)
+  // 2. OR connected (both host and guest can share invite link)
+  const notConnected = connectedPeersList.length === 0;
+  const canInvite = (notConnected && hasVideoOnPage) || (!notConnected && (isHost || hostPeerId));
   btn.style.display = canInvite ? "block" : "none";
-  // Disable until peer is initialized
-  btn.disabled = !myPeerId;
+  // Disable until we have the ID needed for invite link
+  const hasInviteId = isHost ? !!myPeerId : !!hostPeerId;
+  btn.disabled = notConnected ? !myPeerId : !hasInviteId;
 }
 
 // Invite button - copy invite link
