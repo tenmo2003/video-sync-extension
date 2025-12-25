@@ -260,17 +260,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
   }
 
-  // Host changed video - navigate to new URL
-  if (msg.type === "VIDEO_NAVIGATE") {
-    const newUrl = msg.url;
-    if (newUrl && newUrl !== getPageUrl()) {
-      showSyncToast("Host changed video, following...");
-      setTimeout(() => {
-        window.location.href = newUrl;
-      }, 1000);
-    }
-  }
-
   // Peer events
   if (msg.type === "PEER_JOINED") {
     const displayName = getPeerDisplayName(msg.peerId, msg.nickname);
