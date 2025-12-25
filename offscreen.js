@@ -49,6 +49,23 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (tabData && msg.newUrl) {
       tabData.url = msg.newUrl;
     }
+  } else if (msg.type === "HOST_ON_RESTRICTED_PAGE") {
+    // Host navigated to a restricted page (chrome://, brave://, etc.)
+    // Content script can't run there, so we handle "no video" from here
+    if (!msg.tabId) return;
+    const tabData = tabPeers.get(msg.tabId);
+    if (tabData && tabData.isHost && tabData.connections.size > 0) {
+      // Notify all guests that host left video page
+      tabData.connections.forEach((conn) => {
+        if (conn.open) {
+          conn.send({
+            type: "NO_VIDEO_LEFT",
+            reason: "Host navigated to a browser page",
+          });
+        }
+      });
+      sendStatus(msg.tabId, "You left the video page - guests notified", "warning");
+    }
   } else if (msg.type === "TAB_CLOSED") {
     cleanupTab(msg.tabId);
   } else if (msg.type === "DISCONNECT_PEER") {

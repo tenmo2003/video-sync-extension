@@ -197,8 +197,29 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Track tab URL changes to keep offscreen's tabData.url in sync
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.url) {
-    // Update offscreen's stored URL for this tab (if peer exists)
-    sendToOffscreen({ type: "TAB_URL_CHANGED", tabId, newUrl: changeInfo.url });
+    const newUrl = changeInfo.url;
+
+    // Check if this is a restricted URL where content scripts can't run
+    const isRestrictedUrl =
+      newUrl.startsWith("chrome://") ||
+      newUrl.startsWith("chrome-extension://") ||
+      newUrl.startsWith("brave://") ||
+      newUrl.startsWith("edge://") ||
+      newUrl.startsWith("about:") ||
+      newUrl.startsWith("chrome-search://");
+
+    if (isRestrictedUrl) {
+      // Content script can't run here, so we need to handle "no video" from background
+      // This notifies offscreen to tell guests that host left video page
+      sendToOffscreen({
+        type: "HOST_ON_RESTRICTED_PAGE",
+        tabId,
+        url: newUrl,
+      });
+    } else {
+      // Update offscreen's stored URL for this tab (if peer exists)
+      sendToOffscreen({ type: "TAB_URL_CHANGED", tabId, newUrl });
+    }
   }
 });
 
