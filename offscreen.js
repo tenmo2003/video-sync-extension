@@ -370,6 +370,7 @@ function connectToPeer(tabId, targetId, isRedirect = false) {
 
   conn.on("open", () => {
     let pendingVideoNavigate = null;
+    let pendingNicknameUpdate = null;
 
     // Listen for redirect message before setting up connection
     conn.on("data", (data) => {
@@ -391,6 +392,10 @@ function connectToPeer(tabId, targetId, isRedirect = false) {
       if (data.type === "VIDEO_NAVIGATE") {
         pendingVideoNavigate = data;
       }
+      // Store NICKNAME_UPDATE to process after setupConnection
+      if (data.type === "NICKNAME_UPDATE") {
+        pendingNicknameUpdate = data;
+      }
     });
 
     // Wait a moment to see if we get a redirect
@@ -402,6 +407,26 @@ function connectToPeer(tabId, targetId, isRedirect = false) {
           ? "Connected to host! You are a guest."
           : "Connected! You are a guest.";
         sendStatus(tabId, statusMsg, "success");
+
+        // Process any NICKNAME_UPDATE that came in before setupConnection
+        if (pendingNicknameUpdate) {
+          const currentTabData = tabPeers.get(tabId);
+          if (currentTabData) {
+            currentTabData.peerNicknames.set(pendingNicknameUpdate.peerId, pendingNicknameUpdate.nickname);
+            chrome.runtime.sendMessage({
+              type: "CONNECTED_PEERS_UPDATE",
+              tabId,
+              connectedPeers: Array.from(currentTabData.connections.keys()),
+              peerNicknames: Object.fromEntries(currentTabData.peerNicknames),
+            });
+            chrome.runtime.sendMessage({
+              type: "NOTIFY_PEER_NICKNAME",
+              tabId,
+              peerId: pendingNicknameUpdate.peerId,
+              nickname: pendingNicknameUpdate.nickname,
+            });
+          }
+        }
 
         // Process any VIDEO_NAVIGATE that came in before setupConnection
         if (pendingVideoNavigate) {
