@@ -365,6 +365,26 @@ function connectToPeer(tabId, targetId, isRedirect = false) {
     return;
   }
 
+  // If guest is already in a room, disconnect from current room first
+  if (!tabData.isHost && tabData.connections.size > 0) {
+    // Close all existing connections
+    tabData.connections.forEach((conn, peerId) => {
+      conn.close();
+    });
+    tabData.connections.clear();
+    tabData.peerNicknames.clear();
+    tabData.hostPeerId = null;
+    tabData.hostRequests.clear();
+
+    // Notify popup about disconnection
+    chrome.runtime.sendMessage({
+      type: "CONNECTED_PEERS_UPDATE",
+      tabId,
+      connectedPeers: [],
+      peerNicknames: {},
+    });
+  }
+
   const conn = tabData.peer.connect(targetId);
   let redirectHandled = false;
 
