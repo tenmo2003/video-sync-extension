@@ -154,14 +154,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     }
   }
-  // Route video navigation to content script
+  // Handle video navigation - navigate the tab directly
   else if (msg.type === "NOTIFY_VIDEO_NAVIGATE") {
     const tabId = msg.tabId;
-    if (tabId) {
-      chrome.tabs.sendMessage(tabId, {
-        type: "VIDEO_NAVIGATE",
-        url: msg.url,
-      });
+    const url = msg.url;
+    if (tabId && url) {
+      // Navigate the tab directly using chrome.tabs.update
+      // This works even on chrome:// pages where content scripts can't run
+      chrome.tabs.update(tabId, { url: url });
     }
   }
   // Route no video left notification to content script
