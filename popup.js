@@ -257,8 +257,17 @@ function generateInviteLink() {
   if (!currentTabUrl) return null;
 
   // Use host's peer ID for the invite link
-  // If we're the host, use our own ID; if guest, use the stored hostPeerId
-  const inviteHostId = isHost ? myPeerId : hostPeerId;
+  // If we're the host (or not connected yet but have our ID), use our own ID
+  // If we're a guest, use the stored hostPeerId
+  let inviteHostId;
+  if (isHost || !hostPeerId) {
+    // Host or not connected yet - use own ID
+    inviteHostId = myPeerId;
+  } else {
+    // Guest - use host's ID
+    inviteHostId = hostPeerId;
+  }
+
   if (!inviteHostId) return null;
 
   try {
@@ -277,7 +286,9 @@ function updateInviteButton() {
   // 1. Not connected yet (can create new room if has video)
   // 2. OR connected (both host and guest can share invite link)
   const notConnected = connectedPeersList.length === 0;
-  const canInvite = (notConnected && hasVideoOnPage) || (!notConnected && (isHost || hostPeerId));
+  const canInvite =
+    (notConnected && hasVideoOnPage) ||
+    (!notConnected && (isHost || hostPeerId));
   btn.style.display = canInvite ? "block" : "none";
   // Disable until we have the ID needed for invite link
   const hasInviteId = isHost ? !!myPeerId : !!hostPeerId;
