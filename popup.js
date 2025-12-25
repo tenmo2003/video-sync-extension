@@ -8,18 +8,25 @@ let peerNicknames = {}; // peerId -> nickname
 let connectedPeersList = []; // Track connected peers
 
 // Status display helpers
+let hasVideoOnPage = false;
+
 function setVideoStatus(hasVideo) {
+  hasVideoOnPage = hasVideo;
   const el = document.getElementById("video-status");
   const mainContent = document.getElementById("main-content");
+
+  // Always show main content so users can join as guest
+  mainContent.style.display = "block";
+
   if (hasVideo) {
     el.style.display = "none";
-    mainContent.style.display = "block";
   } else {
     el.style.display = "block";
-    el.className = "status error";
-    el.innerText = "No video found on this page";
-    mainContent.style.display = "none";
+    el.className = "status warning";
+    el.innerText = "No video on this page - you can still join a room as guest";
   }
+
+  updateInviteButton();
 }
 
 function setConnectionStatus(status, type = "info") {
@@ -252,8 +259,10 @@ function generateInviteLink() {
 // Update invite button state based on connection status and peer initialization
 function updateInviteButton() {
   const btn = document.getElementById("invite-btn");
-  // Show invite button only when not connected OR when host
-  const canInvite = connectedPeersList.length === 0 || isHost;
+  // Show invite button only when:
+  // 1. There's a video on the page (can't host without video)
+  // 2. AND (not connected OR is host)
+  const canInvite = hasVideoOnPage && (connectedPeersList.length === 0 || isHost);
   btn.style.display = canInvite ? "block" : "none";
   // Disable until peer is initialized
   btn.disabled = !myPeerId;

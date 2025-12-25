@@ -17,7 +17,7 @@
     .connected-peers { margin-top: 8px; }
     .connected-peers h4 { margin: 4px 0; font-size: 13px; }
     .peer-list { font-family: monospace; font-size: 13px; padding: 6px; background: #f5f5f5; border-radius: 4px; max-height: 100px; overflow-y: auto; }
-    .peer-list:empty::before { content: "No peers connected"; color: #888; }
+    .peer-list:empty::before { content: "No room connected"; color: #888; }
     .peer-item { padding: 5px 0; word-break: break-all; display: flex; justify-content: space-between; align-items: center; }
     .peer-item .peer-id { flex: 1; }
     .peer-item .disconnect-btn { font-size: 11px; padding: 2px 6px; cursor: pointer; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 3px; color: #721c24; }
@@ -63,7 +63,7 @@
   <div id="role-indicator"></div>
   <div id="connection-status" class="status info">Not connected</div>
   <div class="connected-peers">
-    <h4 id="peers-heading">Connected Peers:</h4>
+    <h4 id="peers-heading">Connected room:</h4>
     <div id="peer-list" class="peer-list"></div>
     <button id="request-host-btn">Request Host Control</button>
     <button id="disconnect-all">Leave Room</button>
