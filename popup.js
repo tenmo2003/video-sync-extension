@@ -15,16 +15,19 @@ function setVideoStatus(hasVideo) {
   hasVideoOnPage = hasVideo;
   const el = document.getElementById("video-status");
   const mainContent = document.getElementById("main-content");
+  const idRow = document.getElementById("id-row");
 
   // Always show main content so users can join as guest
   mainContent.style.display = "block";
 
   if (hasVideo) {
     el.style.display = "none";
+    idRow.style.display = "flex";
   } else {
     el.style.display = "block";
     el.className = "status warning";
     el.innerText = "No video on this page - you can still join a room as guest";
+    idRow.style.display = "none"; // Hide ID for non-video pages
   }
 
   updateInviteButton();
