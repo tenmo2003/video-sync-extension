@@ -194,5 +194,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   sendToOffscreen({ type: "TAB_CLOSED", tabId });
 });
 
+// Track tab URL changes to keep offscreen's tabData.url in sync
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) {
+    // Update offscreen's stored URL for this tab (if peer exists)
+    sendToOffscreen({ type: "TAB_URL_CHANGED", tabId, newUrl: changeInfo.url });
+  }
+});
+
 // Initialize offscreen at startup
 setupOffscreen();
