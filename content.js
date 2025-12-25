@@ -6,6 +6,7 @@ let toastTimeout = null;
 let isHost = false; // Only host can send video events
 let peersConnected = false; // Track if we have peers
 let peerNicknames = {}; // peerId -> nickname for display in toasts
+let videoListenersSetup = false; // Flag to prevent duplicate listener registration
 
 function getPeerDisplayName(peerId, nickname) {
   return nickname || peerNicknames[peerId] || peerId;
@@ -137,7 +138,8 @@ function sendCurrentVideoUrl() {
 }
 
 function setupVideoListeners() {
-  if (!video) return;
+  if (!video || videoListenersSetup) return;
+  videoListenersSetup = true;
 
   // 1. LISTEN: Capture local user actions (only send if host)
   ["play", "pause", "seeked"].forEach((event) => {
@@ -328,14 +330,21 @@ function handleConnectionState(connected, hostStatus) {
     return;
   }
 
-  // If host and connected with video, notify guests of current URL
-  if (isHost && peersConnected && video) {
-    chrome.runtime.sendMessage({
-      type: "VIDEO_CHANGED",
-      data: {
-        newUrl: getPageUrl(),
-      },
-    });
+  // If connected with video, start sync interval and setup listeners
+  if (peersConnected && video) {
+    setupVideoListeners();
+    startSyncInterval();
+    lastVideoUrl = getPageUrl();
+
+    // If host, notify guests of current URL
+    if (isHost) {
+      chrome.runtime.sendMessage({
+        type: "VIDEO_CHANGED",
+        data: {
+          newUrl: getPageUrl(),
+        },
+      });
+    }
   }
 }
 
