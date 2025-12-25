@@ -159,9 +159,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = msg.tabId;
     const url = msg.url;
     if (tabId && url) {
-      // Navigate the tab directly using chrome.tabs.update
-      // This works even on chrome:// pages where content scripts can't run
-      chrome.tabs.update(tabId, { url: url });
+      // Check if tab is already on this URL to avoid unnecessary refresh
+      chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError) return;
+        if (tab.url !== url) {
+          // Navigate the tab directly using chrome.tabs.update
+          // This works even on chrome:// pages where content scripts can't run
+          chrome.tabs.update(tabId, { url: url });
+        }
+      });
     }
   }
   // Route no video left notification to content script
