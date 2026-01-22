@@ -1,5 +1,12 @@
 let video = document.querySelector("video");
-let isRemoteUpdate = false; // Flag to prevent infinite loops
+let isRemoteUpdate = false;
+let wasConnectedWithVideo = false;
+
+chrome.runtime.sendMessage({
+  type: "FRAME_READY",
+  url: window.location.href,
+  isTop: window === window.top,
+}); // Flag to prevent infinite loops
 let syncIntervalId = null;
 let toastElement = null;
 let toastTimeout = null;
@@ -167,6 +174,14 @@ function setupVideoListeners() {
 
 // 2. APPLY: Receive actions from host & respond to status checks
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "GET_IFRAME_ORDER_TO_TOP" && window === window.top) {
+    const iframeUrls = Array.from(document.querySelectorAll("iframe")).map(
+      (iframe) => iframe.src || ""
+    );
+    sendResponse({ requestId: msg.requestId, iframeUrls });
+    return true;
+  }
+
   if (msg.type === "CHECK_VIDEO_STATUS") {
     if (video) {
       // avoid setting up twice
@@ -311,12 +326,16 @@ function handleConnectionState(connected, hostStatus) {
   // Check for video
   video = document.querySelector("video");
 
-  // If no video but was connected, disconnect
-  if (!video && peersConnected) {
+  if (!video && peersConnected && wasConnectedWithVideo) {
     chrome.runtime.sendMessage({
       type: "NO_VIDEO_DISCONNECT",
     });
+    wasConnectedWithVideo = false;
     return;
+  }
+
+  if (video && !peersConnected && wasConnectedWithVideo) {
+    wasConnectedWithVideo = false;
   }
 
   // If connected with video, start sync interval and setup listeners
@@ -324,6 +343,7 @@ function handleConnectionState(connected, hostStatus) {
     setupVideoListeners();
     startSyncInterval();
     lastVideoUrl = getPageUrl();
+    wasConnectedWithVideo = true;
 
     // If host, notify guests of current URL
     if (isHost) {

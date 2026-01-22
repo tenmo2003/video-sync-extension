@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Video Sync",
   "version": "1.0",
-  "permissions": ["offscreen", "activeTab", "scripting", "storage"],
+  "permissions": ["offscreen", "activeTab", "scripting", "storage", "webNavigation"],
   "background": {
     "service_worker": "background.js"
   },
@@ -13,7 +13,8 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "all_frames": true
     }
   ]
 }

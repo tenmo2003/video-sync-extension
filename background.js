@@ -1,6 +1,12 @@
 let offscreenCreating = false;
 let offscreenReady = false;
 
+// Frame registry: tabId -> { topFrameId: number | null, frames: Map<frameId, {url: string, isTop: boolean}> }
+const frameRegistry = new Map();
+const pendingVideoScans = new Map();
+let nextScanId = 0;
+const videoFrameIdByTab = new Map();
+
 // Ensure the offscreen document exists
 async function setupOffscreen() {
   if (offscreenReady) return;
@@ -26,24 +32,89 @@ async function sendToOffscreen(msg) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "FRAME_READY") {
+    const tabId = sender.tab?.id;
+    const frameId = sender.frameId;
+    if (tabId !== undefined && frameId !== undefined) {
+      const registry = getTabFrameRegistry(tabId);
+      registry.frames.set(frameId, {
+        url: msg.url,
+        isTop: msg.isTop || false,
+      });
+      if (msg.isTop) {
+        registry.topFrameId = frameId;
+        if (registry.pendingScanId !== undefined) {
+          const scanData = { tabId, sendResponse: registry.pendingScanId };
+          delete registry.pendingScanId;
+          if (registry.domOrderedUrls) {
+            continueVideoScan(scanData);
+          } else {
+            chrome.tabs.sendMessage(
+              tabId,
+              { type: "GET_IFRAME_ORDER", requestId: registry.pendingScanId }
+            );
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  if (msg.type === "GET_IFRAME_ORDER") {
+    const tabId = sender.tab?.id;
+    const registry = tabId !== undefined ? getTabFrameRegistry(tabId) : null;
+    if (registry && registry.topFrameId !== null) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "GET_IFRAME_ORDER_TO_TOP",
+        requestId: msg.requestId,
+      }, { frameId: registry.topFrameId });
+    }
+    return true;
+  }
+
+  if (msg.type === "IFRAME_ORDER_RESPONSE") {
+    const tabId = sender.tab?.id;
+    const requestId = msg.requestId;
+    const registry = tabId !== undefined ? getTabFrameRegistry(tabId) : null;
+    if (registry) {
+      registry.domOrderedUrls = msg.iframeUrls;
+    }
+    if (pendingVideoScans.has(requestId)) {
+      const scanData = pendingVideoScans.get(requestId);
+      pendingVideoScans.delete(requestId);
+      continueVideoScan(scanData);
+    }
+    return true;
+  }
+
+  if (msg.type === "CHECK_VIDEO_STATUS" && msg.tabId !== undefined) {
+    const tabId = msg.tabId;
+    checkVideoInAllFrames(tabId, sendResponse);
+    return true;
+  }
+
   // Route messages from Offscreen -> Content Script (with tabId)
   if (msg.type === "INCOMING_ACTION") {
     const tabId = msg.tabId;
     if (tabId) {
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: "APPLY_ACTION",
         data: msg.data,
-      });
+      }, messageOptions);
     }
   }
   // Notify content script about peer connection status
   else if (msg.type === "NOTIFY_CONTENT_PEERS") {
     const tabId = msg.tabId;
     if (tabId) {
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: "PEERS_CONNECTED",
         connected: msg.connected,
-      });
+      }, messageOptions);
     }
   }
   // Route messages from Content Script -> Offscreen (add tabId)
@@ -120,11 +191,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   else if (msg.type === "NOTIFY_CONTENT_ROLE") {
     const tabId = msg.tabId;
     if (tabId) {
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: "ROLE_UPDATE",
         isHost: msg.isHost,
         connected: msg.connected,
-      });
+      }, messageOptions);
     }
   }
   // Route peer events to content script
@@ -136,22 +209,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = msg.tabId;
     if (tabId) {
       const eventType = msg.type.replace("NOTIFY_", "");
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: eventType,
         peerId: msg.peerId,
         nickname: msg.nickname,
-      });
+      }, messageOptions);
     }
   }
   // Route peer nickname updates to content script
   else if (msg.type === "NOTIFY_PEER_NICKNAME") {
     const tabId = msg.tabId;
     if (tabId) {
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: "PEER_NICKNAME",
         peerId: msg.peerId,
         nickname: msg.nickname,
-      });
+      }, messageOptions);
     }
   }
   // Handle video navigation - navigate the tab directly
@@ -174,21 +251,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   else if (msg.type === "NOTIFY_NO_VIDEO_LEFT") {
     const tabId = msg.tabId;
     if (tabId) {
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: "NO_VIDEO_LEFT",
         reason: msg.reason,
-      });
+      }, messageOptions);
     }
   }
   // Route connection state response to content script
   else if (msg.type === "CONNECTION_STATE_RESPONSE") {
     const tabId = msg.tabId;
     if (tabId) {
+      const frameId = getVideoFrameId(tabId);
+      const messageOptions = frameId === 0 ? {} : { frameId };
       chrome.tabs.sendMessage(tabId, {
         type: "CONNECTION_STATE",
         connected: msg.connected,
         isHost: msg.isHost,
-      });
+      }, messageOptions);
     }
   }
   // Forward these messages directly (popup listens to runtime messages)
@@ -197,6 +278,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // Clean up peers when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
+  cleanupTabFrames(tabId);
   sendToOffscreen({ type: "TAB_CLOSED", tabId });
 });
 
@@ -228,6 +310,109 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
   }
 });
+
+function getTabFrameRegistry(tabId) {
+  if (!frameRegistry.has(tabId)) {
+    frameRegistry.set(tabId, { topFrameId: null, frames: new Map() });
+  }
+  return frameRegistry.get(tabId);
+}
+
+function cleanupTabFrames(tabId) {
+  frameRegistry.delete(tabId);
+  videoFrameIdByTab.delete(tabId);
+}
+
+function getVideoFrameId(tabId) {
+  return videoFrameIdByTab.get(tabId) || 0;
+}
+
+function checkVideoInAllFrames(tabId, sendResponse) {
+  const registry = getTabFrameRegistry(tabId);
+
+  function scanTopFrame() {
+    return new Promise((resolve) => {
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: "CHECK_VIDEO_STATUS" },
+        { frameId: 0 },
+        (response) => {
+          if (response?.hasVideo) {
+            videoFrameIdByTab.set(tabId, 0);
+            sendResponse({ hasVideo: true, frameId: 0 });
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        }
+      );
+    });
+  }
+
+  async function scanIframes() {
+    if (!registry.topFrameId || !registry.domOrderedUrls) {
+      sendResponse({ hasVideo: false });
+      return;
+    }
+
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+    const iframeFrames = frames.filter((f) => f.frameId !== 0);
+    const urlToFrameId = new Map();
+    iframeFrames.forEach((f) => {
+      urlToFrameId.set(f.url, f.frameId);
+    });
+
+    for (const iframeUrl of registry.domOrderedUrls) {
+      const frameId = urlToFrameId.get(iframeUrl);
+      if (frameId !== undefined) {
+        const hasVideo = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(
+            tabId,
+            { type: "CHECK_VIDEO_STATUS" },
+            { frameId },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                resolve(false);
+              } else {
+                resolve(response?.hasVideo || false);
+              }
+            }
+          );
+        });
+
+        if (hasVideo) {
+          videoFrameIdByTab.set(tabId, frameId);
+          sendResponse({ hasVideo: true, frameId });
+          return;
+        }
+      }
+    }
+
+    sendResponse({ hasVideo: false });
+    videoFrameIdByTab.delete(tabId);
+  }
+
+  scanTopFrame().then((foundInTop) => {
+    if (!foundInTop) {
+      const scanId = ++nextScanId;
+      pendingVideoScans.set(scanId, { tabId, scanIframes });
+
+      if (registry.domOrderedUrls) {
+        continueVideoScan(pendingVideoScans.get(scanId));
+      } else {
+        registry.pendingScanId = scanId;
+        chrome.tabs.sendMessage(
+          tabId,
+          { type: "GET_IFRAME_ORDER", requestId: scanId }
+        );
+      }
+    }
+  });
+}
+
+function continueVideoScan(scanData) {
+  scanData.scanIframes();
+}
 
 // Initialize offscreen at startup
 setupOffscreen();

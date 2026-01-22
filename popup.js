@@ -180,10 +180,8 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     currentTabId = tabs[0].id;
     currentTabUrl = tabs[0].url;
 
-    // Check for video element
-    chrome.tabs.sendMessage(
-      tabs[0].id,
-      { type: "CHECK_VIDEO_STATUS" },
+    chrome.runtime.sendMessage(
+      { type: "CHECK_VIDEO_STATUS", tabId: currentTabId },
       (response) => {
         if (chrome.runtime.lastError) {
           setVideoStatus(false);
